@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+<title>Afterglow</title>
+<meta name="theme-color" content="#061418" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..500;1,9..144,300..400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#061418; --ink:#E6F5F1; --ink-dim:rgba(230,245,241,0.62); --ink-faint:rgba(230,245,241,0.38);
+    --accent:#5EEAD4; --line:rgba(230,245,241,0.10);
+    --calm:#2FA8A0; --joyful:#E87B83; --tender:#7B5BD6; --content:#E0A24B; --heavy:#2E3A6E;
+    --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{ background:#02060A; color:var(--ink); font-family:var(--sans); font-weight:300; -webkit-font-smoothing:antialiased; }
+  .app{ position:fixed; inset:0; display:flex; justify-content:center; }
+  .device{ position:relative; width:100%; max-width:480px; height:100dvh; background:var(--bg); overflow-y:auto; -webkit-overflow-scrolling:touch; }
+
+  /* glow recipe (matches the prototype) */
+  .glow{ width:160px; height:160px; border-radius:50%; filter:blur(10px); animation:breathe 10s ease-in-out infinite; }
+  .glow.lg{ width:200px; height:200px; }
+  .glow.sm{ width:64px; height:64px; filter:blur(5px); }
+  .glow-heavy{ background:radial-gradient(circle, rgba(210,215,255,.85) 0%, #5566a8 25%, #2E3A6E 50%, rgba(46,58,110,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(46,58,110,.6); }
+  .glow-calm{ background:radial-gradient(circle, rgba(220,200,255,.85) 0%, #5FC9C2 25%, #2FA8A0 50%, rgba(47,168,160,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(47,168,160,.55); }
+  .glow-content{ background:radial-gradient(circle, rgba(255,240,210,.85) 0%, #ecbf7a 25%, #E0A24B 50%, rgba(224,162,75,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(224,162,75,.5); }
+  .glow-joyful{ background:radial-gradient(circle, rgba(255,220,220,.85) 0%, #F0A4AC 25%, #E87B83 50%, rgba(232,123,131,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(232,123,131,.5); }
+  .glow-tender{ background:radial-gradient(circle, rgba(220,200,255,.85) 0%, #9D7BE0 25%, #7B5BD6 50%, rgba(123,91,214,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(123,91,214,.55); }
+  @keyframes breathe{ 0%,100%{transform:scale(1);opacity:.92} 50%{transform:scale(1.05);opacity:1} }
+  @media (prefers-reduced-motion:reduce){ .glow{animation:none} }
+
+  /* layout helpers */
+  .screen{ min-height:100%; display:flex; flex-direction:column; padding:48px 24px 32px; }
+  .center{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:18px; }
+  h1{ font-family:var(--serif); font-weight:300; font-size:32px; }
+  h2{ font-family:var(--serif); font-weight:300; font-size:22px; }
+  .serif-it{ font-family:var(--serif); font-style:italic; font-weight:300; }
+  .dim{ color:var(--ink-dim); } .faint{ color:var(--ink-faint); }
+  .tiny{ font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint); }
+
+  input, .input{
+    width:100%; min-height:50px; padding:0 16px; border-radius:14px; border:1px solid var(--line);
+    background:rgba(2,6,10,.5); color:var(--ink); font-family:var(--sans); font-size:15px; margin-top:10px;
+  }
+  input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:52px; padding:0 24px; border-radius:999px;
+    background:rgba(94,234,212,.12); border:1px solid rgba(94,234,212,.5); color:var(--ink); font-family:var(--sans); font-size:15px;
+    cursor:pointer; box-shadow:0 0 30px rgba(94,234,212,.14); margin-top:14px; transition:box-shadow .2s; }
+  .btn:hover{ box-shadow:0 0 42px rgba(94,234,212,.26); }
+  .btn:disabled{ opacity:.5; cursor:default; box-shadow:none; }
+  .btn.ghost{ background:transparent; border-color:var(--line); color:var(--ink-dim); box-shadow:none; }
+  .link{ color:var(--accent); cursor:pointer; text-decoration:none; font-size:14px; }
+  .err{ color:#ff9b9b; font-size:13px; margin-top:10px; min-height:18px; }
+  .card{ width:100%; border:1px solid var(--line); background:rgba(230,245,241,.02); border-radius:22px; padding:26px 20px; text-align:center; }
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:6px; }
+  .chip{ display:inline-flex; align-items:center; gap:7px; padding:10px 14px; border-radius:999px; border:1px solid var(--line); background:rgba(230,245,241,.03); color:var(--ink); font-size:13px; cursor:pointer; }
+  .chip .dot{ width:8px; height:8px; border-radius:50%; box-shadow:0 0 8px currentColor; }
+  .chip[aria-pressed="true"]{ border-color:rgba(94,234,212,.7); box-shadow:0 0 20px rgba(94,234,212,.2); }
+  .hidden{ display:none !important; }
+  .topbar{ display:flex; justify-content:space-between; align-items:center; }
+  .row{ display:flex; gap:10px; }
+  .merge{ position:relative; width:200px; height:160px; }
+  .merge .glow{ position:absolute; top:50%; transform:translateY(-50%); mix-blend-mode:screen; }
+  .merge .a{ left:6px } .merge .b{ right:6px }
+  .toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); background:rgba(6,20,24,.95); border:1px solid var(--line); border-radius:999px; padding:12px 20px; font-size:13px; color:var(--ink); opacity:0; transition:opacity .3s; z-index:50; }
+  .toast.show{ opacity:1; }
+  .spin{ width:34px;height:34px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:rot 1s linear infinite;}
+  @keyframes rot{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="app"><div class="device" id="root">
+  <div class="screen"><div class="center"><div class="spin"></div><p class="faint tiny">loading</p></div></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ============ CONFIG ============
+const SUPABASE_URL = "https://daharpiwvdewulbsdxge.supabase.co";
+const SUPABASE_KEY = "sb_publishable_2XQ4aLiXqT6cE4n42POZpw_7vW4-q09";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const MOODS = [
+  {key:'heavy',   label:'Heavy',   color:'var(--heavy)'},
+  {key:'calm',    label:'Calm',    color:'var(--calm)'},
+  {key:'content', label:'Content', color:'var(--content)'},
+  {key:'joyful',  label:'Joyful',  color:'var(--joyful)'},
+  {key:'tender',  label:'Tender',  color:'var(--tender)'},
+];
+const moodLabel = k => (MOODS.find(m=>m.key===k)||{}).label || k;
+
+const root = document.getElementById('root');
+const toastEl = document.getElementById('toast');
+let toastT;
+function toast(msg){ toastEl.textContent=msg; toastEl.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove('show'),2600); }
+function todayLocal(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ============ STATE ============
+let STATE = { user:null, profile:null, couple:null, partner:null, realtimeChan:null };
+
+// ============ AUTH BOOT ============
+async function boot(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){ renderAuth(); return; }
+  STATE.user = session.user;
+  await loadContext();
+}
+sb.auth.onAuthStateChange((_e, session)=>{
+  if(!session){ STATE={user:null,profile:null,couple:null,partner:null,realtimeChan:null}; renderAuth(); }
+});
+
+async function loadContext(){
+  renderLoading();
+  // profile
+  let { data:prof } = await sb.from('profiles').select('*').eq('id', STATE.user.id).single();
+  STATE.profile = prof;
+  // couple
+  let { data:mem } = await sb.from('couple_members').select('couple_id').eq('user_id', STATE.user.id).limit(1).maybeSingle();
+  if(!mem){ STATE.couple=null; renderPairing(); return; }
+  STATE.couple = mem.couple_id;
+  // partner
+  let { data:members } = await sb.from('couple_members').select('user_id').eq('couple_id', STATE.couple);
+  const partnerId = (members||[]).map(m=>m.user_id).find(id=>id!==STATE.user.id);
+  if(partnerId){
+    let { data:pp } = await sb.from('profiles').select('*').eq('id', partnerId).maybeSingle();
+    STATE.partner = pp || {id:partnerId, display_name:'Your person'};
+  } else { STATE.partner = null; }
+  subscribeRealtime();
+  renderToday();
+}
+
+function subscribeRealtime(){
+  if(STATE.realtimeChan) sb.removeChannel(STATE.realtimeChan);
+  STATE.realtimeChan = sb.channel('couple-'+STATE.couple)
+    .on('postgres_changes', { event:'*', schema:'public', table:'glows', filter:'couple_id=eq.'+STATE.couple }, ()=>{ if(currentView==='today') renderToday(true); })
+    .on('postgres_changes', { event:'*', schema:'public', table:'warmth', filter:'couple_id=eq.'+STATE.couple }, ()=>{ /* could refresh */ })
+    .subscribe();
+}
+
+// ============ VIEWS ============
+let currentView='';
+function renderLoading(){ currentView='loading'; root.innerHTML='<div class="screen"><div class="center"><div class="spin"></div></div></div>'; }
+
+// ---- AUTH ----
+function renderAuth(mode){
+  currentView='auth'; mode = mode || 'in';
+  const signup = mode==='up';
+  root.innerHTML = `
+  <div class="screen">
+    <div class="center">
+      <div class="glow glow-tender lg"></div>
+      <h1 style="margin-top:6px">Afterglow</h1>
+      <p class="serif-it dim">Presence that remembers.</p>
+      <div style="width:100%;max-width:340px;margin-top:22px">
+        ${signup?'<input id="name" placeholder="Your name" autocomplete="name" />':''}
+        <input id="email" type="email" placeholder="you@email.com" autocomplete="email" />
+        <input id="pass" type="password" placeholder="Password" autocomplete="${signup?'new-password':'current-password'}" />
+        <div class="err" id="autherr"></div>
+        <button class="btn" id="authbtn">${signup?'Create account':'Sign in'}</button>
+        <p style="margin-top:16px" class="dim">${signup?'Already have an account?':'New here?'}
+          <a class="link" id="toggle">${signup?'Sign in':'Create one'}</a></p>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('toggle').onclick=()=>renderAuth(signup?'in':'up');
+  document.getElementById('authbtn').onclick=async()=>{
+    const email=val('email'), pass=val('pass'), name=val('name');
+    const errEl=document.getElementById('autherr'); errEl.textContent='';
+    if(!email||!pass){ errEl.textContent='Email and password, please.'; return; }
+    setBtn('authbtn', true, signup?'Creating…':'Signing in…');
+    try{
+      if(signup){
+        const { error } = await sb.auth.signUp({ email, password:pass, options:{ data:{ display_name: name||'Someone' } } });
+        if(error) throw error;
+        const { data:{ session } } = await sb.auth.getSession();
+        if(!session){ // email confirmation is on
+          root.innerHTML='<div class="screen"><div class="center"><div class="glow glow-calm"></div><h2>Check your email</h2><p class="dim">Confirm your address, then come back and sign in.</p><button class="btn ghost" onclick="location.reload()">Back</button></div></div>'; return;
+        }
+        STATE.user=session.user; await loadContext();
+      } else {
+        const { data, error } = await sb.auth.signInWithPassword({ email, password:pass });
+        if(error) throw error;
+        STATE.user=data.user; await loadContext();
+      }
+    }catch(e){ errEl.textContent = e.message || 'Something went wrong.'; setBtn('authbtn', false, signup?'Create account':'Sign in'); }
+  };
+}
+
+// ---- PAIRING ----
+function renderPairing(){
+  currentView='pairing';
+  root.innerHTML = `
+  <div class="screen">
+    <div class="topbar"><span class="tiny">Afterglow</span><a class="link" id="signout">Sign out</a></div>
+    <div class="center">
+      <div class="merge"><div class="glow glow-calm a"></div><div class="glow glow-joyful b"></div></div>
+      <h2>Afterglow is for two.</h2>
+      <p class="dim" style="max-width:32ch">Invite your person, or enter the code they shared with you.</p>
+      <div style="width:100%;max-width:340px;margin-top:14px">
+        <button class="btn" id="createBtn">Invite my person</button>
+        <p class="tiny" style="margin:18px 0 0">or</p>
+        <input id="codein" placeholder="Enter invite code" autocapitalize="characters" />
+        <div class="err" id="pairerr"></div>
+        <button class="btn ghost" id="joinBtn">Join with code</button>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('signout').onclick=()=>sb.auth.signOut();
+  document.getElementById('createBtn').onclick=createInvite;
+  document.getElementById('joinBtn').onclick=joinWithCode;
+}
+
+async function createInvite(){
+  setBtn('createBtn', true, 'Creating…');
+  try{
+    const { data:couple, error:e1 } = await sb.from('couples').insert({}).select().single();
+    if(e1) throw e1;
+    const { error:e2 } = await sb.from('couple_members').insert({ couple_id:couple.id, user_id:STATE.user.id });
+    if(e2) throw e2;
+    const code = makeCode();
+    const { error:e3 } = await sb.from('invites').insert({ code, couple_id:couple.id, inviter_id:STATE.user.id });
+    if(e3) throw e3;
+    STATE.couple = couple.id;
+    renderInviteCode(code);
+  }catch(e){ document.getElementById('pairerr').textContent=e.message; setBtn('createBtn',false,'Invite my person'); }
+}
+
+function renderInviteCode(code){
+  currentView='invite';
+  root.innerHTML=`
+  <div class="screen"><div class="center">
+    <div class="glow glow-calm"></div>
+    <h2>Share this with your person</h2>
+    <div class="card" style="margin-top:8px">
+      <div style="font-family:var(--serif);font-size:34px;letter-spacing:.18em">${code}</div>
+    </div>
+    <p class="dim" style="max-width:30ch">When they enter this code, you'll be paired. This screen will move on automatically.</p>
+    <button class="btn ghost" id="copyc">Copy code</button>
+    <a class="link" id="waitc" style="margin-top:8px">I'll wait here</a>
+  </div></div>`;
+  document.getElementById('copyc').onclick=()=>{ navigator.clipboard?.writeText(code); toast('Code copied'); };
+  document.getElementById('waitc').onclick=()=>loadContext();
+  // poll for partner joining
+  const poll = setInterval(async()=>{
+    const { data:members } = await sb.from('couple_members').select('user_id').eq('couple_id', STATE.couple);
+    if((members||[]).length>=2){ clearInterval(poll); toast("You are paired!"); loadContext(); }
+  }, 4000);
+}
+
+async function joinWithCode(){
+  const code = val('codein').trim().toUpperCase();
+  const errEl=document.getElementById('pairerr'); errEl.textContent='';
+  if(!code){ errEl.textContent='Enter the code your person shared.'; return; }
+  setBtn('joinBtn', true, 'Joining…');
+  try{
+    const { data:inv, error } = await sb.from('invites').select('*').eq('code', code).maybeSingle();
+    if(error) throw error;
+    if(!inv){ errEl.textContent="That code did not match. Check it and try again."; setBtn('joinBtn',false,'Join with code'); return; }
+    const { error:e2 } = await sb.from('couple_members').insert({ couple_id:inv.couple_id, user_id:STATE.user.id });
+    if(e2 && !/duplicate/i.test(e2.message)) throw e2;
+    await sb.from('invites').update({ accepted_by: STATE.user.id }).eq('id', inv.id);
+    toast("You are paired!");
+    await loadContext();
+  }catch(e){ errEl.textContent=e.message; setBtn('joinBtn',false,'Join with code'); }
+}
+
+// ---- TODAY (home) ----
+async function renderToday(silent){
+  currentView='today';
+  if(!silent) renderLoading();
+  const today = todayLocal();
+  const { data:glows } = await sb.from('glows').select('*').eq('couple_id', STATE.couple).eq('local_date', today);
+  const mine = (glows||[]).find(g=>g.user_id===STATE.user.id);
+  const theirs = (glows||[]).find(g=>g.user_id!==STATE.user.id);
+  const partnerName = STATE.partner?.display_name || 'Your person';
+  const myName = STATE.profile?.display_name || 'you';
+
+  let partnerBlock;
+  if(theirs){
+    partnerBlock = `
+      <div class="card" id="partnerCard" style="cursor:pointer">
+        <div class="glow glow-${theirs.mood}" style="margin:4px auto 16px"></div>
+        <div style="font-family:var(--serif);font-size:19px">${esc(partnerName)} felt <em class="serif-it">${moodLabel(theirs.mood)}</em> today.</div>
+        ${theirs.shared_note?`<div class="serif-it dim" style="font-size:13px;margin-top:6px">${esc(theirs.shared_note)}</div>`:''}
+        <div class="tiny" style="margin-top:14px">Tap to sit with it →</div>
+      </div>`;
+  } else {
+    partnerBlock = `<div class="card"><p class="serif-it dim">${esc(partnerName)} hasn't checked in yet today.<br>Their glow will be here when they do.</p></div>`;
+  }
+
+  let mineBlock;
+  if(mine){
+    mineBlock = `
+      <div class="card">
+        <div class="glow glow-${mine.mood} sm" style="margin:0 auto 12px"></div>
+        <div class="serif-it">You shared <em>${moodLabel(mine.mood)}</em> today.</div>
+        <p class="dim" style="font-size:13px;margin-top:4px">Sent to ${esc(partnerName)}.</p>
+      </div>`;
+  } else {
+    mineBlock = `
+      <div class="card">
+        <h2>How did today feel?</h2>
+        <p class="dim" style="font-size:14px;margin-top:4px">Share your light with ${esc(partnerName)}.</p>
+        <button class="btn" id="reflectBtn">Reflect on today</button>
+      </div>`;
+  }
+
+  const both = mine && theirs;
+
+  root.innerHTML = `
+  <div class="screen">
+    <div class="topbar"><span class="tiny">Afterglow</span><a class="link" id="menu">Menu</a></div>
+    <div style="display:flex;flex-direction:column;gap:18px;margin-top:26px">
+      <div style="text-align:center"><div class="tiny">${new Date().toLocaleDateString(undefined,{weekday:'long'})} · evening</div>
+        <h1 style="font-size:26px;margin-top:6px">Good evening, ${esc(myName)}.</h1></div>
+      ${partnerBlock}
+      ${both?`<div class="card" id="bothCard" style="cursor:pointer;border-color:rgba(94,234,212,.25);background:rgba(94,234,212,.05)">
+        <div class="merge" style="margin:0 auto 8px;width:160px;height:80px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>
+        <div class="serif-it">You're both here.</div></div>`:''}
+      ${mineBlock}
+      <div class="faint serif-it" style="text-align:center;margin-top:8px;font-size:11px">no streaks, no scores</div>
+    </div>
+  </div>`;
+
+  const rb=document.getElementById('reflectBtn'); if(rb) rb.onclick=renderReflect;
+  const pc=document.getElementById('partnerCard'); if(pc) pc.onclick=()=>renderReceive(theirs);
+  const bc=document.getElementById('bothCard'); if(bc) bc.onclick=()=>renderTogether(mine,theirs);
+  document.getElementById('menu').onclick=renderMenu;
+}
+
+// ---- REFLECT ----
+let draft = { mood:null, word:'', shared:'', priv:'' };
+function renderReflect(){
+  currentView='reflect'; draft={mood:null,word:'',shared:'',priv:''};
+  root.innerHTML=`
+  <div class="screen">
+    <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Reflect</span></div>
+    <div class="center">
+      <h2>How did today feel?</h2>
+      <div class="glow" id="draftGlow" style="background:radial-gradient(circle,rgba(230,245,241,.2),transparent 70%);box-shadow:none"></div>
+      <div class="serif-it dim" id="draftWord">choose a feeling</div>
+      <div class="chips" id="moodchips">
+        ${MOODS.map(m=>`<button class="chip" data-mood="${m.key}" aria-pressed="false"><span class="dot" style="color:${m.color}"></span>${m.label}</button>`).join('')}
+      </div>
+      <div style="width:100%;max-width:340px">
+        <input id="word" placeholder="A word, if you like (optional)" maxlength="24" />
+        <input id="shared" placeholder="Anything to share? (optional)" maxlength="120" />
+        <input id="priv" placeholder="Just for you. Optional." maxlength="200" />
+        <button class="btn" id="sendBtn" disabled>Send to ${esc(STATE.partner?.display_name||'your person')}</button>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('back').onclick=renderToday;
+  document.querySelectorAll('#moodchips .chip').forEach(c=>{
+    c.onclick=()=>{
+      draft.mood=c.dataset.mood;
+      document.querySelectorAll('#moodchips .chip').forEach(x=>x.setAttribute('aria-pressed', x===c?'true':'false'));
+      const g=document.getElementById('draftGlow'); g.className='glow glow-'+draft.mood; g.style.background=''; g.style.boxShadow='';
+      document.getElementById('draftWord').textContent=moodLabel(draft.mood).toLowerCase();
+      document.getElementById('sendBtn').disabled=false;
+    };
+  });
+  document.getElementById('sendBtn').onclick=sendGlow;
+}
+
+async function sendGlow(){
+  draft.word=val('word'); draft.shared=val('shared'); draft.priv=val('priv');
+  if(!draft.mood) return;
+  setBtn('sendBtn', true, 'Sending…');
+  try{
+    const today=todayLocal();
+    const { data:glow, error } = await sb.from('glows').insert({
+      couple_id:STATE.couple, user_id:STATE.user.id, local_date:today,
+      mood:draft.mood, word:draft.word||null, shared_note:draft.shared||null
+    }).select().single();
+    if(error){
+      if(/duplicate|unique/i.test(error.message)){ toast('You already shared today.'); renderToday(); return; }
+      throw error;
+    }
+    if(draft.priv){ await sb.from('glow_private').insert({ glow_id:glow.id, user_id:STATE.user.id, note:draft.priv }); }
+    renderSent();
+  }catch(e){ toast(e.message); setBtn('sendBtn',false,'Send'); }
+}
+
+function renderSent(){
+  currentView='sent';
+  root.innerHTML=`<div class="screen"><div class="center">
+    <div class="glow glow-${draft.mood} sm" style="opacity:.6"></div>
+    <h2 class="serif-it">Sent.</h2>
+    <p class="dim">${esc(STATE.partner?.display_name||'Your person')} will feel this when they're ready.</p>
+    <button class="btn ghost" id="home" style="max-width:240px">Return home</button>
+  </div></div>`;
+  document.getElementById('home').onclick=renderToday;
+}
+
+// ---- RECEIVE ----
+function renderReceive(theirs){
+  currentView='receive';
+  const name=esc(STATE.partner?.display_name||'Your person');
+  root.innerHTML=`
+  <div class="screen">
+    <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">${name}</span></div>
+    <div class="center">
+      <div class="glow glow-${theirs.mood} lg"></div>
+      <h2>${name} felt <em class="serif-it">${moodLabel(theirs.mood)}</em> today.</h2>
+      ${theirs.shared_note?`<p class="serif-it dim">${esc(theirs.shared_note)}</p>`:''}
+      <button class="btn" id="warmBtn" style="max-width:320px">♡ Hold to send warmth</button>
+      <p class="tiny" id="warmNote">${name} will know you sat with this.</p>
+    </div>
+  </div>`;
+  document.getElementById('back').onclick=renderToday;
+  let held=false, t;
+  const btn=document.getElementById('warmBtn');
+  const start=()=>{ held=false; t=setTimeout(()=>{ held=true; doWarm(theirs); }, 1200); btn.textContent='holding…'; };
+  const end=()=>{ clearTimeout(t); if(!held) btn.textContent='♡ Hold to send warmth'; };
+  btn.addEventListener('mousedown',start); btn.addEventListener('touchstart',e=>{e.preventDefault();start();},{passive:false});
+  btn.addEventListener('mouseup',end); btn.addEventListener('mouseleave',end); btn.addEventListener('touchend',end);
+}
+async function doWarm(theirs){
+  const btn=document.getElementById('warmBtn');
+  btn.textContent='Warmth sent'; btn.disabled=true;
+  try{ await sb.from('warmth').insert({ couple_id:STATE.couple, from_user:STATE.user.id, to_glow:theirs.id }); }catch(e){}
+  setTimeout(renderToday, 1800);
+}
+
+// ---- TOGETHER ----
+function renderTogether(mine,theirs){
+  currentView='together';
+  root.innerHTML=`<div class="screen">
+    <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Together</span></div>
+    <div class="center">
+      <p class="serif-it dim">Both here.</p>
+      <div class="merge" style="width:240px;height:200px"><div class="glow glow-${theirs.mood} a"></div><div class="glow glow-${mine.mood} b"></div></div>
+      <h2 class="serif-it">${moodLabel(theirs.mood).toLowerCase()} · ${moodLabel(mine.mood).toLowerCase()}</h2>
+      <p class="dim">You're both present. Stay a moment.</p>
+    </div></div>`;
+  document.getElementById('back').onclick=renderToday;
+}
+
+// ---- MENU ----
+function renderMenu(){
+  currentView='menu';
+  root.innerHTML=`<div class="screen">
+    <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Menu</span></div>
+    <div class="center">
+      <h2 class="serif-it">${esc(STATE.profile?.display_name||'You')}</h2>
+      <p class="dim">Paired with ${esc(STATE.partner?.display_name||'your person')}</p>
+      <button class="btn ghost" id="signout" style="max-width:260px">Sign out</button>
+    </div></div>`;
+  document.getElementById('back').onclick=renderToday;
+  document.getElementById('signout').onclick=()=>sb.auth.signOut();
+}
+
+// ============ utils ============
+function val(id){ const e=document.getElementById(id); return e?e.value.trim():''; }
+function setBtn(id,busy,txt){ const b=document.getElementById(id); if(!b)return; b.disabled=busy; if(txt)b.textContent=txt; }
+
+boot();
+</script>
+</body>
+</html>
