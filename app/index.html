@@ -216,17 +216,25 @@ function renderPairing(){
   document.getElementById('joinBtn').onclick=joinWithCode;
 }
 
+function makeCode(){
+  const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s='';
+  for(let i=0;i<6;i++) s+=a[Math.floor(Math.random()*a.length)];
+  return s;
+}
 async function createInvite(){
   setBtn('createBtn', true, 'Creating…');
   try{
-    const { data:couple, error:e1 } = await sb.from('couples').insert({}).select().single();
+    // Generate the couple id client-side: RLS won't let us read the row back
+    // until we're a member, so we can't rely on insert().select().
+    const cid = (crypto.randomUUID ? crypto.randomUUID() : makeCode()+'-'+Date.now());
+    const { error:e1 } = await sb.from('couples').insert({ id:cid });
     if(e1) throw e1;
-    const { error:e2 } = await sb.from('couple_members').insert({ couple_id:couple.id, user_id:STATE.user.id });
+    const { error:e2 } = await sb.from('couple_members').insert({ couple_id:cid, user_id:STATE.user.id });
     if(e2) throw e2;
     const code = makeCode();
-    const { error:e3 } = await sb.from('invites').insert({ code, couple_id:couple.id, inviter_id:STATE.user.id });
+    const { error:e3 } = await sb.from('invites').insert({ code, couple_id:cid, inviter_id:STATE.user.id });
     if(e3) throw e3;
-    STATE.couple = couple.id;
+    STATE.couple = cid;
     renderInviteCode(code);
   }catch(e){ document.getElementById('pairerr').textContent=e.message; setBtn('createBtn',false,'Invite my person'); }
 }
