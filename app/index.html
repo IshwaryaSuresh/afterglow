@@ -216,26 +216,14 @@ function renderPairing(){
   document.getElementById('joinBtn').onclick=joinWithCode;
 }
 
-function makeCode(){
-  const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s='';
-  for(let i=0;i<6;i++) s+=a[Math.floor(Math.random()*a.length)];
-  return s;
-}
 async function createInvite(){
   setBtn('createBtn', true, 'Creating…');
   try{
-    // Generate the couple id client-side: RLS won't let us read the row back
-    // until we're a member, so we can't rely on insert().select().
-    const cid = (crypto.randomUUID ? crypto.randomUUID() : makeCode()+'-'+Date.now());
-    const { error:e1 } = await sb.from('couples').insert({ id:cid });
-    if(e1) throw e1;
-    const { error:e2 } = await sb.from('couple_members').insert({ couple_id:cid, user_id:STATE.user.id });
-    if(e2) throw e2;
-    const code = makeCode();
-    const { error:e3 } = await sb.from('invites').insert({ code, couple_id:cid, inviter_id:STATE.user.id });
-    if(e3) throw e3;
-    STATE.couple = cid;
-    renderInviteCode(code);
+    // Server-side function creates couple + membership + invite atomically (avoids RLS read-back issues)
+    const { data, error } = await sb.rpc('create_invite');
+    if(error) throw error;
+    STATE.couple = data.couple_id;
+    renderInviteCode(data.code);
   }catch(e){ document.getElementById('pairerr').textContent=e.message; setBtn('createBtn',false,'Invite my person'); }
 }
 
@@ -267,12 +255,9 @@ async function joinWithCode(){
   if(!code){ errEl.textContent='Enter the code your person shared.'; return; }
   setBtn('joinBtn', true, 'Joining…');
   try{
-    const { data:inv, error } = await sb.from('invites').select('*').eq('code', code).maybeSingle();
+    const { data, error } = await sb.rpc('join_with_code', { p_code: code });
     if(error) throw error;
-    if(!inv){ errEl.textContent="That code did not match. Check it and try again."; setBtn('joinBtn',false,'Join with code'); return; }
-    const { error:e2 } = await sb.from('couple_members').insert({ couple_id:inv.couple_id, user_id:STATE.user.id });
-    if(e2 && !/duplicate/i.test(e2.message)) throw e2;
-    await sb.from('invites').update({ accepted_by: STATE.user.id }).eq('id', inv.id);
+    if(!data || data.error){ errEl.textContent="That code did not match. Check it and try again."; setBtn('joinBtn',false,'Join with code'); return; }
     toast("You are paired!");
     await loadContext();
   }catch(e){ errEl.textContent=e.message; setBtn('joinBtn',false,'Join with code'); }
