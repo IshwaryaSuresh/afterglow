@@ -340,6 +340,12 @@ function notifyPartnerGlow(g){
 let currentView='';
 function renderLoading(){ currentView='loading'; root.innerHTML='<div class="screen"><div class="center"><div class="spin"></div></div></div>'; }
 
+// Shared topbar with a close (X) on the right. The close button keeps id="back" so existing handlers work.
+function closeBar(title){
+  return '<div class="topbar"><span class="tiny">'+(title||'')+'</span>'
+    +'<button class="iconbtn" id="back" aria-label="Close"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>';
+}
+
 // ---- AUTH ----
 function renderAuth(mode){
   currentView='auth'; mode = mode || 'in';
@@ -536,7 +542,7 @@ function renderReflect(){
   currentView='reflect'; draft={mood:null,word:'',shared:'',priv:''};
   root.innerHTML=`
   <div class="screen">
-    <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Reflect</span></div>
+    ${closeBar('Reflect')}
     <div class="center">
       <h2>How did today feel?</h2>
       <div class="glow" id="draftGlow" style="background:radial-gradient(circle,rgba(230,245,241,.2),transparent 70%);box-shadow:none"></div>
@@ -620,7 +626,7 @@ function renderReceive(theirs){
   const reduce=reducedMotion();
   root.innerHTML=`
   <div class="screen">
-    <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">${name}</span></div>
+    ${closeBar(name)}
     <div class="center">
       <div class="warm-stage" id="stage">
         <div class="glow glow-${theirs.mood} lg warm-glow" id="warmGlow"></div>
@@ -719,7 +725,7 @@ function renderTogether(mine,theirs){
   const reduce=reducedMotion();
   const them=esc(STATE.partner?.display_name||'Your person');
   root.innerHTML=`<div class="screen">
-    <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Together</span></div>
+    ${closeBar('Together')}
     <div class="center">
       <p class="tiny">${new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'})}</p>
       <div class="together-stage">
@@ -760,7 +766,7 @@ async function renderStory(){
 
     if(!dates.length){
       root.innerHTML=`<div class="screen">
-        <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Our story</span></div>
+        ${closeBar('Our story')}
         <div class="center"><div class="glow glow-calm sm" style="opacity:.5"></div>
           <p class="dim serif-it" style="max-width:280px">Your story begins with the first glow you share. Come back after tonight.</p></div></div>`;
       document.getElementById('back').onclick=renderMenu; return;
@@ -822,7 +828,7 @@ async function renderStory(){
     });
 
     root.innerHTML=`<div class="screen">
-      <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Our story</span></div>
+      ${closeBar('Our story')}
       <div class="story-hero">
         ${ringHtml}
         <p class="serif-it" style="font-size:18px;margin-top:2px">${dates.length} ${dates.length===1?'evening':'evenings'} together.</p>
@@ -848,7 +854,7 @@ async function renderStory(){
 
 // ---- CALENDAR ----
 async function renderCalendar(offset){
-  offset = offset||0;
+  offset = (typeof offset==='number' && isFinite(offset)) ? offset : 0;   // guard against event objects passed by onclick
   currentView='calendar';
   renderLoading();
   try{
@@ -873,7 +879,7 @@ async function renderCalendar(offset){
     }
     const canForward = offset<0;  // never navigate into the future
     root.innerHTML=`<div class="screen">
-      <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Calendar</span></div>
+      ${closeBar('Calendar')}
       <div class="cal-head">
         <button class="iconbtn" id="prevM" aria-label="Previous month">‹</button>
         <h2 class="serif-it" aria-live="polite">${monthName}</h2>
@@ -928,7 +934,7 @@ async function renderDayLetter(date, backFn){
 
     const both=mine&&theirs;
     root.innerHTML=`<div class="screen">
-      <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">a day</span></div>
+      ${closeBar('a day')}
       <div class="letter-head" style="margin-top:14px">
         ${both?`<div class="merge letter-merge" style="width:120px;height:60px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>`:''}
         <h1>${weekday}</h1>
@@ -958,7 +964,7 @@ function renderNotif(){
   else { state='<p class="dim" style="font-size:14px;max-width:300px">Afterglow can gently let you know when '+them+' shares their glow. No badges, no counts, no pressure, just a quiet nudge.</p>'; }
 
   root.innerHTML=`<div class="screen">
-    <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Glow reminders</span></div>
+    ${closeBar('Glow reminders')}
     <div class="center">
       <div class="glow glow-calm sm"></div>
       <h2 class="serif-it">A quiet nudge</h2>
@@ -1004,9 +1010,9 @@ function renderMenu(){
       </div>
     </div></div>`;
   document.getElementById('back').onclick=renderToday;
-  document.getElementById('story').onclick=renderStory;
-  document.getElementById('calendar').onclick=renderCalendar;
-  document.getElementById('notif').onclick=renderNotif;
+  document.getElementById('story').onclick=()=>renderStory();
+  document.getElementById('calendar').onclick=()=>renderCalendar(0);
+  document.getElementById('notif').onclick=()=>renderNotif();
   document.getElementById('signout').onclick=()=>sb.auth.signOut();
 }
 
