@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..500;1,9..144,300..400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#061418; --ink:#E6F5F1; --ink-dim:rgba(230,245,241,0.62); --ink-faint:rgba(230,245,241,0.38);
+    --bg:#061418; --ink:#E6F5F1; --ink-dim:rgba(230,245,241,0.72); --ink-faint:rgba(230,245,241,0.55);
     --accent:#5EEAD4; --line:rgba(230,245,241,0.10);
     --calm:#2FA8A0; --joyful:#E87B83; --tender:#7B5BD6; --content:#E0A24B; --heavy:#2E3A6E;
     --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
@@ -59,7 +59,14 @@
   .btn:hover{ box-shadow:0 0 42px rgba(94,234,212,.26); }
   .btn:disabled{ opacity:.5; cursor:default; box-shadow:none; }
   .btn.ghost{ background:transparent; border-color:var(--line); color:var(--ink-dim); box-shadow:none; }
-  .link{ color:var(--accent); cursor:pointer; text-decoration:none; font-size:14px; }
+  .link{ color:var(--accent); cursor:pointer; text-decoration:none; font-size:14px; background:none; border:0;
+    font-family:inherit; min-height:44px; display:inline-flex; align-items:center; padding:8px; margin:-8px; }
+  .iconbtn{ background:none; border:0; color:var(--ink); cursor:pointer; min-width:44px; min-height:44px;
+    display:inline-flex; align-items:center; justify-content:center; padding:8px; margin:-8px; border-radius:10px; }
+  /* visible keyboard focus everywhere; hidden for mouse/touch */
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:8px; }
+  :focus:not(:focus-visible){ outline:none; }
+  [role="button"]{ cursor:pointer; }
   .err{ color:#ff9b9b; font-size:13px; margin-top:10px; min-height:18px; }
   .card{ width:100%; border:1px solid var(--line); background:rgba(230,245,241,.02); border-radius:22px; padding:26px 20px; text-align:center; }
   .chips{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:6px; }
@@ -112,6 +119,10 @@
   }
 
   /* ---- history: calendar + story ---- */
+  .cal-head{ display:flex; align-items:center; justify-content:center; gap:8px; margin-top:14px; }
+  .cal-head h2{ min-width:168px; text-align:center; }
+  .cal-head .iconbtn{ font-size:24px; color:var(--accent); }
+  .iconbtn:disabled{ opacity:.28; cursor:default; }
   .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:18px; }
   .cal-h{ text-align:center; padding:2px 0; }
   .cal-cell{ aspect-ratio:1; border-radius:12px; border:1px solid var(--line); position:relative;
@@ -191,7 +202,7 @@
 <div class="app"><div class="device" id="root">
   <div class="screen"><div class="center"><div class="spin"></div><p class="faint tiny">loading</p></div></div>
 </div></div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -202,6 +213,15 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Register service worker (installable PWA + notifications)
 if('serviceWorker' in navigator){ window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
+
+// Keyboard activation for custom (div) buttons: Enter / Space
+document.addEventListener('keydown', (e)=>{
+  if(e.key!=='Enter' && e.key!==' ' && e.key!=='Spacebar') return;
+  const el=document.activeElement;
+  if(el && el.getAttribute && el.getAttribute('role')==='button' && el.tagName!=='BUTTON' && el.tagName!=='A'){
+    e.preventDefault(); el.click();
+  }
+});
 
 const MOODS = [
   {key:'heavy',   label:'Heavy',   color:'var(--heavy)'},
@@ -431,7 +451,7 @@ async function renderToday(silent){
       ? `<div class="tiny" style="margin-top:14px;color:rgba(94,234,212,.75)">♡ You sat with this</div>`
       : `<div class="tiny" style="margin-top:14px">Tap to sit with it →</div>`;
     partnerBlock = `
-      <div class="card" id="partnerCard" style="cursor:pointer">
+      <div class="card" id="partnerCard" role="button" tabindex="0" aria-label="Sit with ${esc(partnerName)}'s glow" style="cursor:pointer">
         <div class="glow glow-${theirs.mood}" style="margin:4px auto 16px"></div>
         <div style="font-family:var(--serif);font-size:19px">${esc(partnerName)} felt <em class="serif-it">${moodLabel(theirs.mood).toLowerCase()}</em> today.</div>
         ${theirs.shared_note?`<div class="serif-it dim" style="font-size:13px;margin-top:6px">${esc(theirs.shared_note)}</div>`:''}
@@ -462,12 +482,12 @@ async function renderToday(silent){
 
   root.innerHTML = `
   <div class="screen">
-    <div class="topbar"><span class="tiny">Afterglow</span><a class="link" id="menu">Menu</a></div>
+    <div class="topbar"><span class="tiny">Afterglow</span><button class="iconbtn" id="menu" aria-label="Open menu"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true" focusable="false"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
     <div style="display:flex;flex-direction:column;gap:18px;margin-top:26px">
       <div style="text-align:center"><div class="tiny">${new Date().toLocaleDateString(undefined,{weekday:'long'})} · ${dayPart()==='late'?'night':dayPart()}</div>
         <h1 style="font-size:26px;margin-top:6px">${greeting()}, ${esc(myName)}.</h1></div>
       ${partnerBlock}
-      ${both?`<div class="card" id="bothCard" style="cursor:pointer;border-color:rgba(94,234,212,.25);background:rgba(94,234,212,.05)">
+      ${both?`<div class="card" id="bothCard" role="button" tabindex="0" aria-label="Open your shared moment" style="cursor:pointer;border-color:rgba(94,234,212,.25);background:rgba(94,234,212,.05)">
         <div class="merge" style="margin:0 auto 8px;width:160px;height:80px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>
         <div class="serif-it">You're both here.</div></div>`:''}
       ${mineBlock}
@@ -488,7 +508,7 @@ function renderReflect(){
   currentView='reflect'; draft={mood:null,word:'',shared:'',priv:''};
   root.innerHTML=`
   <div class="screen">
-    <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Reflect</span></div>
+    <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Reflect</span></div>
     <div class="center">
       <h2>How did today feel?</h2>
       <div class="glow" id="draftGlow" style="background:radial-gradient(circle,rgba(230,245,241,.2),transparent 70%);box-shadow:none"></div>
@@ -572,7 +592,7 @@ function renderReceive(theirs){
   const reduce=reducedMotion();
   root.innerHTML=`
   <div class="screen">
-    <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">${name}</span></div>
+    <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">${name}</span></div>
     <div class="center">
       <div class="warm-stage" id="stage">
         <div class="glow glow-${theirs.mood} lg warm-glow" id="warmGlow"></div>
@@ -671,7 +691,7 @@ function renderTogether(mine,theirs){
   const reduce=reducedMotion();
   const them=esc(STATE.partner?.display_name||'Your person');
   root.innerHTML=`<div class="screen">
-    <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Together</span></div>
+    <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Together</span></div>
     <div class="center">
       <p class="tiny">${new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'})}</p>
       <div class="together-stage">
@@ -712,7 +732,7 @@ async function renderStory(){
 
     if(!dates.length){
       root.innerHTML=`<div class="screen">
-        <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Our story</span></div>
+        <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Our story</span></div>
         <div class="center"><div class="glow glow-calm sm" style="opacity:.5"></div>
           <p class="dim serif-it" style="max-width:280px">Your story begins with the first glow you share. Come back after tonight.</p></div></div>`;
       document.getElementById('back').onclick=renderMenu; return;
@@ -741,7 +761,7 @@ async function renderStory(){
       return `<div class="ring" style="width:${dia}px;height:${dia}px;color:${dayColor(byDate[d])}"></div>`;
     }).join('');
     const coreCol=dayColor(latest);
-    const ringHtml=`<div class="ring-stage" id="ringStage">
+    const ringHtml=`<div class="ring-stage" id="ringStage" role="img" aria-label="A glowing ring for each of your ${dates.length} ${dates.length===1?'evening':'evenings'} together. Use the list below to open a day.">
         <div class="ring-aura" style="background:radial-gradient(circle, ${coreCol} 0%, rgba(6,20,24,0) 65%)"></div>
         <div class="ring-spin">${ghosts}${rings}</div>
         <div class="ring-core" style="background:radial-gradient(circle, #ffffff 0%, rgba(255,255,255,.85) 16%, ${coreCol} 46%, rgba(6,20,24,0) 74%); box-shadow:0 0 56px 10px ${coreCol}88"></div>
@@ -763,7 +783,7 @@ async function renderStory(){
       else line=`you felt <span class="mood-em">${moodLabel(mine.mood).toLowerCase()}</span> · <span class="dim">${them} was quiet</span>`;
       const note = (theirs&&theirs.shared_note) || (mine&&mine.shared_note) || '';
       const dayName=dt.toLocaleDateString(undefined,{weekday:'long', day:'numeric'});
-      body+=`<div class="story-day" data-date="${d}">
+      body+=`<div class="story-day" data-date="${d}" role="button" tabindex="0" aria-label="Open ${dayName}">
         <div class="node ${both?'both':''}"></div>
         <div class="sd-date">${dayName}</div>
         <div class="sd-glows">${theirs?`<div class="glow glow-${theirs.mood}"></div>`:''}${mine?`<div class="glow glow-${mine.mood}"></div>`:''}</div>
@@ -774,7 +794,7 @@ async function renderStory(){
     });
 
     root.innerHTML=`<div class="screen">
-      <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Our story</span></div>
+      <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Our story</span></div>
       <div class="story-hero">
         ${ringHtml}
         <p class="serif-it" style="font-size:18px;margin-top:2px">${dates.length} ${dates.length===1?'evening':'evenings'} together.</p>
@@ -799,7 +819,8 @@ async function renderStory(){
 }
 
 // ---- CALENDAR ----
-async function renderCalendar(){
+async function renderCalendar(offset){
+  offset = offset||0;
   currentView='calendar';
   renderLoading();
   try{
@@ -807,27 +828,40 @@ async function renderCalendar(){
     const me=STATE.user.id;
     const mineBy={}, themBy={};
     (glows||[]).forEach(g=>{ (g.user_id===me?mineBy:themBy)[g.local_date]=g; });
-    const now=new Date(); const y=now.getFullYear(), m=now.getMonth();
+    const base=new Date(); base.setDate(1); base.setMonth(base.getMonth()+offset);
+    const y=base.getFullYear(), m=base.getMonth();
     const startDow=new Date(y,m,1).getDay(); const days=new Date(y,m+1,0).getDate();
     const todayS=todayLocal();
+    const monthName=base.toLocaleDateString(undefined,{month:'long',year:'numeric'});
     const dot=g=>g?`<span class="cal-dot" style="background:var(--${g.mood});box-shadow:0 0 6px var(--${g.mood})"></span>`:'';
     let cells='';
-    ['S','M','T','W','T','F','S'].forEach(d=>cells+=`<div class="cal-h tiny">${d}</div>`);
-    for(let i=0;i<startDow;i++) cells+=`<div></div>`;
+    ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>cells+=`<div class="cal-h tiny" aria-hidden="true">${d[0]}</div>`);
+    for(let i=0;i<startDow;i++) cells+=`<div aria-hidden="true"></div>`;
     for(let d=1; d<=days; d++){
       const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const tg=themBy[ds], mg=mineBy[ds], has=tg||mg;
-      cells+=`<div class="cal-cell ${has?'has':''} ${ds===todayS?'today':''}" data-date="${ds}" ${has?'':'data-empty="1"'}>
+      cells+=`<div class="cal-cell ${has?'has':''} ${ds===todayS?'today':''}" data-date="${ds}">
         <div class="cal-orbs">${dot(tg)}${dot(mg)}</div><span class="cal-num">${d}</span></div>`;
     }
+    const canForward = offset<0;  // never navigate into the future
     root.innerHTML=`<div class="screen">
-      <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Calendar</span></div>
-      <div style="text-align:center;margin-top:16px"><h2 class="serif-it">${now.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</h2></div>
+      <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Calendar</span></div>
+      <div class="cal-head">
+        <button class="iconbtn" id="prevM" aria-label="Previous month">‹</button>
+        <h2 class="serif-it" aria-live="polite">${monthName}</h2>
+        <button class="iconbtn" id="nextM" aria-label="Next month" ${canForward?'':'disabled aria-disabled="true"'}>›</button>
+      </div>
       <div class="cal-grid">${cells}</div>
       <div class="faint serif-it" style="text-align:center;margin-top:18px;font-size:11px">each light is a day you showed up</div>
     </div>`;
     document.getElementById('back').onclick=renderMenu;
-    document.querySelectorAll('.cal-cell.has').forEach(el=>{ el.style.cursor='pointer'; el.onclick=()=>renderDayLetter(el.dataset.date, renderCalendar); });
+    document.getElementById('prevM').onclick=()=>renderCalendar(offset-1);
+    const nx=document.getElementById('nextM'); if(nx && canForward) nx.onclick=()=>renderCalendar(offset+1);
+    document.querySelectorAll('.cal-cell.has').forEach(el=>{
+      el.setAttribute('role','button'); el.setAttribute('tabindex','0');
+      el.setAttribute('aria-label','Open '+fmtDate(el.dataset.date));
+      el.onclick=()=>renderDayLetter(el.dataset.date, renderCalendar);
+    });
   }catch(e){ renderError("We could not open the calendar.", renderCalendar); }
 }
 
@@ -866,7 +900,7 @@ async function renderDayLetter(date, backFn){
 
     const both=mine&&theirs;
     root.innerHTML=`<div class="screen">
-      <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">a day</span></div>
+      <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">a day</span></div>
       <div class="letter-head" style="margin-top:14px">
         ${both?`<div class="merge letter-merge" style="width:120px;height:60px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>`:''}
         <h1>${weekday}</h1>
@@ -896,7 +930,7 @@ function renderNotif(){
   else { state='<p class="dim" style="font-size:14px;max-width:300px">Afterglow can gently let you know when '+them+' shares their glow. No badges, no counts, no pressure, just a quiet nudge.</p>'; }
 
   root.innerHTML=`<div class="screen">
-    <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Glow reminders</span></div>
+    <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Glow reminders</span></div>
     <div class="center">
       <div class="glow glow-calm sm"></div>
       <h2 class="serif-it">A quiet nudge</h2>
@@ -929,7 +963,7 @@ function renderNotif(){
 function renderMenu(){
   currentView='menu';
   root.innerHTML=`<div class="screen">
-    <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Menu</span></div>
+    <div class="topbar"><button class="link" id="back" aria-label="Go back">‹ Back</button><span class="tiny">Menu</span></div>
     <div class="center">
       <h2 class="serif-it">${esc(STATE.profile?.display_name||'You')}</h2>
       <p class="dim">Paired with ${esc(STATE.partner?.display_name||'your person')}</p>
