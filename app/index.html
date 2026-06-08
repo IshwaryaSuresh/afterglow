@@ -70,6 +70,28 @@
   .toast.show{ opacity:1; }
   .spin{ width:34px;height:34px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:rot 1s linear infinite;}
   @keyframes rot{to{transform:rotate(360deg)}}
+
+  /* ---- warmth interaction ---- */
+  .warm-stage{ position:relative; display:flex; align-items:center; justify-content:center; width:280px; height:280px; }
+  .warm-glow{ will-change:transform,filter; }
+  .warm-ring{ position:absolute; inset:30px; border-radius:50%; opacity:0; transition:opacity .35s;
+    -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+            mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); }
+  .warm-ring.on{ opacity:.95; }
+  .ripple{ position:absolute; left:50%; top:50%; width:80px; height:80px; border-radius:50%; border:1px solid var(--accent);
+    transform:translate(-50%,-50%) scale(.6); opacity:.7; pointer-events:none; animation:ripple 1.6s ease-out forwards; }
+  @keyframes ripple{ to{ transform:translate(-50%,-50%) scale(4.2); opacity:0; } }
+  .heart{ position:absolute; left:50%; top:54%; font-size:18px; color:#ffd9dd; pointer-events:none; opacity:0;
+    text-shadow:0 0 10px rgba(255,180,190,.6); animation:floatUp 2s ease-out forwards; }
+  @keyframes floatUp{ 0%{opacity:0;transform:translate(-50%,0) scale(.5)} 18%{opacity:1} 100%{opacity:0;transform:translate(var(--dx,-50%),-150px) scale(1.15)} }
+  .warm-btn-hold{ background:rgba(94,234,212,.2); border-color:rgba(94,234,212,.85); box-shadow:0 0 50px rgba(94,234,212,.35); }
+
+  /* ---- glow send-off ---- */
+  .sent-glow{ animation:sendOff 2.1s cubic-bezier(.4,0,.5,1) forwards; }
+  @keyframes sendOff{ 0%{transform:translateY(10px) scale(.9);opacity:.7}
+    28%{transform:translateY(0) scale(1.12);opacity:1}
+    100%{transform:translateY(-160px) scale(.22);opacity:0;filter:blur(16px)} }
+  @media (prefers-reduced-motion:reduce){ .sent-glow{animation:none;opacity:.6} .ripple,.heart{display:none} }
 </style>
 </head>
 <body>
@@ -391,14 +413,29 @@ async function sendGlow(){
   }catch(e){ toast(e.message); setBtn('sendBtn',false,'Send'); }
 }
 
+function vib(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+function reducedMotion(){ return window.matchMedia('(prefers-reduced-motion:reduce)').matches; }
+
 function renderSent(){
   currentView='sent';
+  const reduce=reducedMotion();
+  const name=esc(STATE.partner?.display_name||'Your person');
   root.innerHTML=`<div class="screen"><div class="center">
-    <div class="glow glow-${draft.mood} sm" style="opacity:.6"></div>
-    <h2 class="serif-it">Sent.</h2>
-    <p class="dim">${esc(STATE.partner?.display_name||'Your person')} will feel this when they're ready.</p>
-    <button class="btn ghost" id="home" style="max-width:240px">Return home</button>
+    <div class="warm-stage" id="sstage" style="height:240px">
+      <div class="glow glow-${draft.mood} ${reduce?'':'sent-glow'}" id="sentGlow"></div>
+    </div>
+    <h2 class="serif-it" id="sentTitle" style="opacity:0;transition:opacity .7s">Sent.</h2>
+    <p class="dim" id="sentSub" style="opacity:0;transition:opacity .7s">${name} will feel this when they're ready.</p>
+    <button class="btn ghost" id="home" style="max-width:240px;opacity:0;transition:opacity .7s">Return home</button>
   </div></div>`;
+  if(!reduce){
+    const st=document.getElementById('sstage');
+    for(let i=0;i<2;i++){ const r=document.createElement('div'); r.className='ripple'; r.style.animationDelay=(i*0.3)+'s'; st.appendChild(r); }
+  }
+  vib(12);
+  const reveal=()=>{ [['sentTitle','1'],['sentSub','.62'],['home','1']].forEach((p,i)=>{
+    setTimeout(()=>{ const el=document.getElementById(p[0]); if(el) el.style.opacity=p[1]; }, i*200); }); };
+  setTimeout(reveal, reduce?100:1600);
   document.getElementById('home').onclick=renderToday;
 }
 
@@ -406,30 +443,100 @@ function renderSent(){
 function renderReceive(theirs){
   currentView='receive';
   const name=esc(STATE.partner?.display_name||'Your person');
+  const reduce=reducedMotion();
   root.innerHTML=`
   <div class="screen">
     <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">${name}</span></div>
     <div class="center">
-      <div class="glow glow-${theirs.mood} lg"></div>
-      <h2>${name} felt <em class="serif-it">${moodLabel(theirs.mood)}</em> today.</h2>
-      ${theirs.shared_note?`<p class="serif-it dim">${esc(theirs.shared_note)}</p>`:''}
-      <button class="btn" id="warmBtn" style="max-width:320px">♡ Hold to send warmth</button>
-      <p class="tiny" id="warmNote">${name} will know you sat with this.</p>
+      <div class="warm-stage" id="stage">
+        <div class="glow glow-${theirs.mood} lg warm-glow" id="warmGlow"></div>
+        <div class="warm-ring" id="warmRing"></div>
+      </div>
+      <h2 id="warmTitle">${name} felt <em class="serif-it">${moodLabel(theirs.mood)}</em> today.</h2>
+      ${theirs.shared_note?`<p class="serif-it dim" id="warmShared">${esc(theirs.shared_note)}</p>`:''}
+      <button class="btn" id="warmBtn" style="max-width:320px;touch-action:none;user-select:none;-webkit-user-select:none">♡ Hold to send warmth</button>
+      <p class="tiny" id="warmNote">Hold ${name}'s glow close.</p>
     </div>
   </div>`;
   document.getElementById('back').onclick=renderToday;
-  let held=false, t;
+
   const btn=document.getElementById('warmBtn');
-  const start=()=>{ held=false; t=setTimeout(()=>{ held=true; doWarm(theirs); }, 1200); btn.textContent='holding…'; };
-  const end=()=>{ clearTimeout(t); if(!held) btn.textContent='♡ Hold to send warmth'; };
-  btn.addEventListener('mousedown',start); btn.addEventListener('touchstart',e=>{e.preventDefault();start();},{passive:false});
-  btn.addEventListener('mouseup',end); btn.addEventListener('mouseleave',end); btn.addEventListener('touchend',end);
+  const glow=document.getElementById('warmGlow');
+  const ring=document.getElementById('warmRing');
+  const note=document.getElementById('warmNote');
+  const stage=document.getElementById('stage');
+  const HOLD=1600;
+  let raf=null, timer=null, startT=0, done=false, buzz=0;
+
+  function frame(now){
+    if(!startT) startT=now;
+    const p=Math.min((now-startT)/HOLD, 1);
+    glow.style.transform='scale('+(1+p*0.28)+')';
+    glow.style.filter='blur('+(10+p*8)+'px) brightness('+(1+p*0.55)+')';
+    ring.classList.add('on');
+    const deg=p*360;
+    ring.style.background='conic-gradient(#5EEAD4 '+deg+'deg, rgba(94,234,212,.10) '+deg+'deg)';
+    if(p>0.5 && buzz<1){ buzz=1; vib(8); }
+    if(p>0.85 && buzz<2){ buzz=2; vib(8); }
+    if(p>=1){ complete(); return; }
+    raf=requestAnimationFrame(frame);
+  }
+  function start(e){
+    if(done) return;
+    if(e && e.cancelable) e.preventDefault();
+    btn.classList.add('warm-btn-hold');
+    btn.textContent='♡ holding';
+    note.textContent='keep holding…';
+    startT=0; buzz=0;
+    if(reduce){ note.textContent='holding…'; timer=setTimeout(complete, HOLD); return; }
+    glow.style.animation='none';            // take over from the breathe loop
+    raf=requestAnimationFrame(frame);
+  }
+  function cancel(){
+    if(done) return;
+    if(raf){ cancelAnimationFrame(raf); raf=null; }
+    if(timer){ clearTimeout(timer); timer=null; }
+    startT=0;
+    btn.classList.remove('warm-btn-hold');
+    btn.textContent='♡ Hold to send warmth';
+    note.textContent='Hold a little longer to let it land.';
+    if(!reduce){
+      glow.style.transition='transform .6s ease, filter .6s ease';
+      glow.style.transform='scale(1)'; glow.style.filter='';
+      ring.classList.remove('on');
+      setTimeout(()=>{ glow.style.transition=''; glow.style.animation=''; }, 620);
+    }
+  }
+  function complete(){
+    if(done) return; done=true;
+    if(raf){ cancelAnimationFrame(raf); raf=null; }
+    if(timer){ clearTimeout(timer); timer=null; }
+    vib([0,30,40,40]);
+    ring.classList.remove('on');
+    btn.disabled=true; btn.classList.remove('warm-btn-hold'); btn.textContent='warmth sent';
+    const title=document.getElementById('warmTitle'); if(title) title.textContent='';
+    const shared=document.getElementById('warmShared'); if(shared) shared.style.display='none';
+    note.textContent=name+' will feel you sat with this.';
+    if(!reduce){
+      glow.style.transition='transform .9s cubic-bezier(.2,.7,.2,1), filter .9s ease';
+      glow.style.transform='scale(1.38)';
+      glow.style.filter='blur(16px) brightness(1.7)';
+      for(let i=0;i<3;i++){ const r=document.createElement('div'); r.className='ripple'; r.style.animationDelay=(i*0.18)+'s'; stage.appendChild(r); }
+      for(let i=0;i<6;i++){ const h=document.createElement('div'); h.className='heart'; h.textContent='♡';
+        h.style.setProperty('--dx', Math.round(Math.random()*120-60)+'px'); h.style.left=(44+Math.random()*12)+'%';
+        h.style.animationDelay=(i*0.1)+'s'; stage.appendChild(h); }
+      setTimeout(()=>{ glow.style.transition='transform 1.2s ease, filter 1.2s ease'; glow.style.transform='scale(1)'; glow.style.filter=''; }, 950);
+    }
+    doWarm(theirs);
+    setTimeout(renderToday, reduce?1400:2700);
+  }
+  btn.addEventListener('pointerdown', start);
+  btn.addEventListener('pointerup', cancel);
+  btn.addEventListener('pointerleave', cancel);
+  btn.addEventListener('pointercancel', cancel);
 }
 async function doWarm(theirs){
-  const btn=document.getElementById('warmBtn');
-  btn.textContent='Warmth sent'; btn.disabled=true;
   try{ await sb.from('warmth').insert({ couple_id:STATE.couple, from_user:STATE.user.id, to_glow:theirs.id }); }catch(e){}
-  setTimeout(renderToday, 1800);
 }
 
 // ---- TOGETHER ----
