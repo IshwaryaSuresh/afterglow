@@ -305,14 +305,24 @@ async function renderToday(silent){
   const partnerName = STATE.partner?.display_name || 'Your person';
   const myName = STATE.profile?.display_name || 'you';
 
+  // have I already sat with their glow today?
+  let iSatWithIt=false;
+  if(theirs){
+    const { data:w } = await sb.from('warmth').select('id').eq('to_glow', theirs.id).eq('from_user', STATE.user.id).limit(1);
+    iSatWithIt = !!(w && w.length);
+  }
+
   let partnerBlock;
   if(theirs){
+    const footer = iSatWithIt
+      ? `<div class="tiny" style="margin-top:14px;color:rgba(94,234,212,.75)">♡ You sat with this</div>`
+      : `<div class="tiny" style="margin-top:14px">Tap to sit with it →</div>`;
     partnerBlock = `
       <div class="card" id="partnerCard" style="cursor:pointer">
         <div class="glow glow-${theirs.mood}" style="margin:4px auto 16px"></div>
         <div style="font-family:var(--serif);font-size:19px">${esc(partnerName)} felt <em class="serif-it">${moodLabel(theirs.mood)}</em> today.</div>
         ${theirs.shared_note?`<div class="serif-it dim" style="font-size:13px;margin-top:6px">${esc(theirs.shared_note)}</div>`:''}
-        <div class="tiny" style="margin-top:14px">Tap to sit with it →</div>
+        ${footer}
       </div>`;
   } else {
     partnerBlock = `<div class="card"><p class="serif-it dim">${esc(partnerName)} hasn't checked in yet today.<br>Their glow will be here when they do.</p></div>`;
