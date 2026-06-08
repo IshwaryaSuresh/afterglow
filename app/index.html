@@ -86,6 +86,41 @@
   @keyframes floatUp{ 0%{opacity:0;transform:translate(-50%,0) scale(.5)} 18%{opacity:1} 100%{opacity:0;transform:translate(var(--dx,-50%),-150px) scale(1.15)} }
   .warm-btn-hold{ background:rgba(94,234,212,.2); border-color:rgba(94,234,212,.85); box-shadow:0 0 50px rgba(94,234,212,.35); }
 
+  /* ---- together (both here) ---- */
+  .together-stage{ position:relative; width:300px; height:240px; margin:0 auto; }
+  .tg-orb{ position:absolute; top:50%; left:50%; }
+  .tg-orb .glow{ mix-blend-mode:screen; }
+  .tg-a{ animation:tgDriftA 3.4s cubic-bezier(.35,0,.2,1) forwards; }
+  .tg-b{ animation:tgDriftB 3.4s cubic-bezier(.35,0,.2,1) forwards; }
+  @keyframes tgDriftA{ 0%{transform:translate(calc(-50% - 92px),-50%);opacity:.35} 100%{transform:translate(calc(-50% - 36px),-50%);opacity:1} }
+  @keyframes tgDriftB{ 0%{transform:translate(calc(-50% + 92px),-50%);opacity:.35} 100%{transform:translate(calc(-50% + 36px),-50%);opacity:1} }
+  .tg-halo{ position:absolute; top:50%; left:50%; width:230px; height:230px; border-radius:50%; opacity:0;
+    transform:translate(-50%,-50%) scale(.55); background:radial-gradient(circle, rgba(94,234,212,.16), transparent 68%);
+    animation:tgHalo 3.4s ease-out .5s forwards; }
+  @keyframes tgHalo{ to{ opacity:1; transform:translate(-50%,-50%) scale(1); } }
+  @media (prefers-reduced-motion:reduce){
+    .tg-a,.tg-b,.tg-halo{ animation:none; }
+    .tg-a{ transform:translate(calc(-50% - 36px),-50%); }
+    .tg-b{ transform:translate(calc(-50% + 36px),-50%); }
+    .tg-halo{ opacity:1; transform:translate(-50%,-50%); }
+  }
+
+  /* ---- history: calendar + story ---- */
+  .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:18px; }
+  .cal-h{ text-align:center; padding:2px 0; }
+  .cal-cell{ aspect-ratio:1; border-radius:12px; border:1px solid var(--line); position:relative;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:rgba(230,245,241,.02); }
+  .cal-cell.has{ border-color:rgba(94,234,212,.28); background:rgba(94,234,212,.05); }
+  .cal-cell.today{ outline:1px solid rgba(94,234,212,.5); }
+  .cal-num{ font-size:11px; color:var(--ink-faint); }
+  .cal-orbs{ display:flex; gap:3px; min-height:8px; align-items:center; }
+  .cal-dot{ width:7px; height:7px; border-radius:50%; }
+  .story-row{ display:flex; align-items:center; gap:14px; padding:14px 4px; border-bottom:1px solid var(--line); }
+  .story-glows{ display:flex; gap:8px; width:54px; justify-content:center; flex:0 0 auto; }
+  .story-glows .glow{ width:30px; height:30px; filter:blur(3px); animation:none; }
+  .story-date{ flex:0 0 auto; width:auto; }
+  .story-words{ font-size:14px; }
+
   /* ---- glow send-off ---- */
   .sent-glow{ animation:sendOff 2.1s cubic-bezier(.4,0,.5,1) forwards; }
   @keyframes sendOff{ 0%{transform:translateY(10px) scale(.9);opacity:.7}
@@ -320,7 +355,7 @@ async function renderToday(silent){
     partnerBlock = `
       <div class="card" id="partnerCard" style="cursor:pointer">
         <div class="glow glow-${theirs.mood}" style="margin:4px auto 16px"></div>
-        <div style="font-family:var(--serif);font-size:19px">${esc(partnerName)} felt <em class="serif-it">${moodLabel(theirs.mood)}</em> today.</div>
+        <div style="font-family:var(--serif);font-size:19px">${esc(partnerName)} felt <em class="serif-it">${moodLabel(theirs.mood).toLowerCase()}</em> today.</div>
         ${theirs.shared_note?`<div class="serif-it dim" style="font-size:13px;margin-top:6px">${esc(theirs.shared_note)}</div>`:''}
         ${footer}
       </div>`;
@@ -333,8 +368,8 @@ async function renderToday(silent){
     mineBlock = `
       <div class="card">
         <div class="glow glow-${mine.mood} sm" style="margin:0 auto 12px"></div>
-        <div class="serif-it">You shared <em>${moodLabel(mine.mood)}</em> today.</div>
-        <p class="dim" style="font-size:13px;margin-top:4px">Sent to ${esc(partnerName)}.</p>
+        <div class="serif-it">You felt <em>${moodLabel(mine.mood).toLowerCase()}</em> today.</div>
+        <p class="dim" style="font-size:13px;margin-top:4px">Shared with ${esc(partnerName)}.</p>
       </div>`;
   } else {
     mineBlock = `
@@ -351,8 +386,8 @@ async function renderToday(silent){
   <div class="screen">
     <div class="topbar"><span class="tiny">Afterglow</span><a class="link" id="menu">Menu</a></div>
     <div style="display:flex;flex-direction:column;gap:18px;margin-top:26px">
-      <div style="text-align:center"><div class="tiny">${new Date().toLocaleDateString(undefined,{weekday:'long'})} · evening</div>
-        <h1 style="font-size:26px;margin-top:6px">Good evening, ${esc(myName)}.</h1></div>
+      <div style="text-align:center"><div class="tiny">${new Date().toLocaleDateString(undefined,{weekday:'long'})} · ${dayPart()==='late'?'night':dayPart()}</div>
+        <h1 style="font-size:26px;margin-top:6px">${greeting()}, ${esc(myName)}.</h1></div>
       ${partnerBlock}
       ${both?`<div class="card" id="bothCard" style="cursor:pointer;border-color:rgba(94,234,212,.25);background:rgba(94,234,212,.05)">
         <div class="merge" style="margin:0 auto 8px;width:160px;height:80px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>
@@ -425,6 +460,9 @@ async function sendGlow(){
 
 function vib(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
 function reducedMotion(){ return window.matchMedia('(prefers-reduced-motion:reduce)').matches; }
+function dayPart(){ const h=new Date().getHours(); return h<5?'late':h<12?'morning':h<17?'afternoon':h<22?'evening':'late'; }
+function greeting(){ const p=dayPart(); return p==='late'?'Hello':'Good '+p; }
+function fmtDate(d){ try{ return new Date(d+'T00:00').toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'}); }catch(e){ return d; } }
 
 function renderSent(){
   currentView='sent';
@@ -462,7 +500,7 @@ function renderReceive(theirs){
         <div class="glow glow-${theirs.mood} lg warm-glow" id="warmGlow"></div>
         <div class="warm-ring" id="warmRing"></div>
       </div>
-      <h2 id="warmTitle">${name} felt <em class="serif-it">${moodLabel(theirs.mood)}</em> today.</h2>
+      <h2 id="warmTitle">${name} felt <em class="serif-it">${moodLabel(theirs.mood).toLowerCase()}</em> today.</h2>
       ${theirs.shared_note?`<p class="serif-it dim" id="warmShared">${esc(theirs.shared_note)}</p>`:''}
       <button class="btn" id="warmBtn" style="max-width:320px;touch-action:none;user-select:none;-webkit-user-select:none">♡ Hold to send warmth</button>
       <p class="tiny" id="warmNote">Hold ${name}'s glow close.</p>
@@ -552,15 +590,26 @@ async function doWarm(theirs){
 // ---- TOGETHER ----
 function renderTogether(mine,theirs){
   currentView='together';
+  const reduce=reducedMotion();
+  const them=esc(STATE.partner?.display_name||'Your person');
   root.innerHTML=`<div class="screen">
     <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Together</span></div>
     <div class="center">
-      <p class="serif-it dim">Both here.</p>
-      <div class="merge" style="width:240px;height:200px"><div class="glow glow-${theirs.mood} a"></div><div class="glow glow-${mine.mood} b"></div></div>
-      <h2 class="serif-it">${moodLabel(theirs.mood).toLowerCase()} · ${moodLabel(mine.mood).toLowerCase()}</h2>
-      <p class="dim">You're both present. Stay a moment.</p>
+      <p class="tiny">${new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'})}</p>
+      <div class="together-stage">
+        <div class="tg-halo"></div>
+        <div class="tg-orb tg-a"><div class="glow glow-${theirs.mood} lg"></div></div>
+        <div class="tg-orb tg-b"><div class="glow glow-${mine.mood} lg"></div></div>
+      </div>
+      <h2 class="serif-it" id="tgTitle" style="opacity:0;transition:opacity .9s">You're both here.</h2>
+      <p class="dim" id="tgSub" style="opacity:0;transition:opacity .9s;max-width:300px">${them} felt ${moodLabel(theirs.mood).toLowerCase()}. You felt ${moodLabel(mine.mood).toLowerCase()}. Tonight your lights overlap.</p>
+      <p class="faint serif-it" style="font-size:11px;margin-top:4px">stay a moment</p>
     </div></div>`;
   document.getElementById('back').onclick=renderToday;
+  const reveal=()=>{ const t=document.getElementById('tgTitle'),s=document.getElementById('tgSub');
+    if(t) t.style.opacity='1'; setTimeout(()=>{ if(s) s.style.opacity='.62'; }, 350); };
+  setTimeout(reveal, reduce?60:1900);
+  if(!reduce) vib(10);
 }
 
 // ---- MENU ----
