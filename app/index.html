@@ -612,6 +612,109 @@ function renderTogether(mine,theirs){
   if(!reduce) vib(10);
 }
 
+// ---- OUR STORY (timeline) ----
+async function renderStory(){
+  currentView='story';
+  renderLoading();
+  try{
+    const { data:glows } = await sb.from('glows').select('*').eq('couple_id', STATE.couple).order('local_date',{ascending:false});
+    const me=STATE.user.id;
+    const them=esc(STATE.partner?.display_name||'Your person');
+    const byDate={};
+    (glows||[]).forEach(g=>{ (byDate[g.local_date]=byDate[g.local_date]||[]).push(g); });
+    const dates=Object.keys(byDate).sort().reverse();
+    const rows=dates.map(d=>{
+      const gs=byDate[d];
+      const mine=gs.find(g=>g.user_id===me);
+      const theirs=gs.find(g=>g.user_id!==me);
+      const words=[ theirs&&moodLabel(theirs.mood).toLowerCase(), mine&&moodLabel(mine.mood).toLowerCase() ].filter(Boolean).join('  ·  ');
+      return `<div class="story-row" data-date="${d}">
+        <div class="story-glows">
+          ${theirs?`<div class="glow glow-${theirs.mood}"></div>`:''}
+          ${mine?`<div class="glow glow-${mine.mood}"></div>`:''}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="story-date tiny">${fmtDate(d)}</div>
+          <div class="story-words serif-it dim">${words}</div>
+        </div>
+        <div class="tiny" style="flex:0 0 auto">›</div>
+      </div>`;
+    }).join('');
+    root.innerHTML=`<div class="screen">
+      <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Our story</span></div>
+      <div style="margin-top:18px">
+        ${dates.length?rows:`<p class="dim serif-it" style="text-align:center;margin-top:48px">Your story begins with the first glow you share.</p>`}
+        <div class="faint serif-it" style="text-align:center;margin:24px 0 8px;font-size:11px">no streaks, no scores</div>
+      </div></div>`;
+    document.getElementById('back').onclick=renderMenu;
+    document.querySelectorAll('.story-row').forEach(el=>{ el.style.cursor='pointer'; el.onclick=()=>renderDayLetter(el.dataset.date, renderStory); });
+  }catch(e){ renderError("We could not open your story.", renderStory); }
+}
+
+// ---- CALENDAR ----
+async function renderCalendar(){
+  currentView='calendar';
+  renderLoading();
+  try{
+    const { data:glows } = await sb.from('glows').select('*').eq('couple_id', STATE.couple);
+    const me=STATE.user.id;
+    const mineBy={}, themBy={};
+    (glows||[]).forEach(g=>{ (g.user_id===me?mineBy:themBy)[g.local_date]=g; });
+    const now=new Date(); const y=now.getFullYear(), m=now.getMonth();
+    const startDow=new Date(y,m,1).getDay(); const days=new Date(y,m+1,0).getDate();
+    const todayS=todayLocal();
+    const dot=g=>g?`<span class="cal-dot" style="background:var(--${g.mood});box-shadow:0 0 6px var(--${g.mood})"></span>`:'';
+    let cells='';
+    ['S','M','T','W','T','F','S'].forEach(d=>cells+=`<div class="cal-h tiny">${d}</div>`);
+    for(let i=0;i<startDow;i++) cells+=`<div></div>`;
+    for(let d=1; d<=days; d++){
+      const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const tg=themBy[ds], mg=mineBy[ds], has=tg||mg;
+      cells+=`<div class="cal-cell ${has?'has':''} ${ds===todayS?'today':''}" data-date="${ds}" ${has?'':'data-empty="1"'}>
+        <div class="cal-orbs">${dot(tg)}${dot(mg)}</div><span class="cal-num">${d}</span></div>`;
+    }
+    root.innerHTML=`<div class="screen">
+      <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Calendar</span></div>
+      <div style="text-align:center;margin-top:16px"><h2 class="serif-it">${now.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</h2></div>
+      <div class="cal-grid">${cells}</div>
+      <div class="faint serif-it" style="text-align:center;margin-top:18px;font-size:11px">each light is a day you showed up</div>
+    </div>`;
+    document.getElementById('back').onclick=renderMenu;
+    document.querySelectorAll('.cal-cell.has').forEach(el=>{ el.style.cursor='pointer'; el.onclick=()=>renderDayLetter(el.dataset.date, renderCalendar); });
+  }catch(e){ renderError("We could not open the calendar.", renderCalendar); }
+}
+
+// ---- DAY LETTER (one day in detail) ----
+async function renderDayLetter(date, backFn){
+  currentView='dayletter';
+  renderLoading();
+  try{
+    const { data:glows } = await sb.from('glows').select('*').eq('couple_id', STATE.couple).eq('local_date', date);
+    const me=STATE.user.id;
+    const mine=(glows||[]).find(g=>g.user_id===me);
+    const theirs=(glows||[]).find(g=>g.user_id!==me);
+    let myPriv=null;
+    if(mine){ const { data:pv } = await sb.from('glow_private').select('note').eq('glow_id', mine.id).maybeSingle(); myPriv=pv?.note||null; }
+    const them=esc(STATE.partner?.display_name||'Your person');
+    const block=(g,who,isMine)=> g?`
+      <div class="card" style="text-align:center">
+        <div class="glow glow-${g.mood}" style="margin:6px auto 14px"></div>
+        <div class="serif-it" style="font-size:18px">${who} felt ${moodLabel(g.mood).toLowerCase()}.</div>
+        ${g.word?`<div class="serif-it dim" style="margin-top:8px;font-size:15px">&ldquo;${esc(g.word)}&rdquo;</div>`:''}
+        ${g.shared_note?`<p class="dim" style="margin-top:10px;font-size:14px">${esc(g.shared_note)}</p>`:''}
+        ${isMine&&myPriv?`<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px"><div class="tiny" style="margin-bottom:5px">just for you</div><p class="serif-it dim" style="font-size:14px">${esc(myPriv)}</p></div>`:''}
+      </div>`:'';
+    root.innerHTML=`<div class="screen">
+      <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">${fmtDate(date)}</span></div>
+      <div style="display:flex;flex-direction:column;gap:16px;margin-top:20px">
+        ${block(theirs, them, false)}
+        ${block(mine, 'You', true)}
+        ${(!mine&&!theirs)?`<p class="dim serif-it" style="text-align:center;margin-top:40px">A quiet day. No glow was shared.</p>`:''}
+      </div></div>`;
+    document.getElementById('back').onclick=()=>(backFn||renderStory)();
+  }catch(e){ renderError("We could not open that day.", ()=>renderDayLetter(date, backFn)); }
+}
+
 // ---- MENU ----
 function renderMenu(){
   currentView='menu';
@@ -620,9 +723,17 @@ function renderMenu(){
     <div class="center">
       <h2 class="serif-it">${esc(STATE.profile?.display_name||'You')}</h2>
       <p class="dim">Paired with ${esc(STATE.partner?.display_name||'your person')}</p>
-      <button class="btn ghost" id="signout" style="max-width:260px">Sign out</button>
+      <div style="width:100%;max-width:280px;display:flex;flex-direction:column;gap:10px;margin-top:12px">
+        <button class="btn" id="story">Our story</button>
+        <button class="btn ghost" id="calendar">Calendar</button>
+        <button class="btn ghost" id="notif">Glow reminders</button>
+        <button class="btn ghost" id="signout">Sign out</button>
+      </div>
     </div></div>`;
   document.getElementById('back').onclick=renderToday;
+  document.getElementById('story').onclick=renderStory;
+  document.getElementById('calendar').onclick=renderCalendar;
+  document.getElementById('notif').onclick=renderNotif;
   document.getElementById('signout').onclick=()=>sb.auth.signOut();
 }
 
