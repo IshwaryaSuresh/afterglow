@@ -960,7 +960,7 @@ function renderNotif(){
   let state;
   if(!supported){ state='<p class="dim" style="font-size:14px">This device does not support notifications. On iPhone, add Afterglow to your Home Screen first (Share → Add to Home Screen), then reminders can be turned on.</p>'; }
   else if(perm==='denied'){ state='<p class="dim" style="font-size:14px">Notifications are blocked in your browser settings. Allow them for this site, then come back.</p>'; }
-  else if(on){ state='<p class="serif-it" style="color:rgba(94,234,212,.85)">♡ Reminders are on.</p><p class="dim" style="font-size:13px;margin-top:6px">You will be told gently when '+them+' shares a glow, while Afterglow is open or running in the background.</p>'; }
+  else if(on){ state='<p class="serif-it" style="color:rgba(94,234,212,.85)">♡ Reminders are on.</p><p class="dim" style="font-size:13px;margin-top:6px">You will be told gently when '+them+' shares a glow, even when Afterglow is closed.</p>'; }
   else { state='<p class="dim" style="font-size:14px;max-width:300px">Afterglow can gently let you know when '+them+' shares their glow. No badges, no counts, no pressure, just a quiet nudge.</p>'; }
 
   root.innerHTML=`<div class="screen">
