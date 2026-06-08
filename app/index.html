@@ -121,8 +121,21 @@
   .cal-num{ font-size:11px; color:var(--ink-faint); }
   .cal-orbs{ display:flex; gap:3px; min-height:8px; align-items:center; }
   .cal-dot{ width:7px; height:7px; border-radius:50%; }
-  .story-hero{ text-align:center; padding:10px 0 20px; }
+  .story-hero{ text-align:center; padding:10px 0 18px; }
   .story-hero .merge{ width:120px; height:64px; margin:0 auto 14px; }
+  /* concentric story rings (each ring = a day, newest outermost) */
+  .ring-stage{ position:relative; width:300px; height:300px; margin:4px auto 14px; cursor:pointer; }
+  .ring-spin{ position:absolute; inset:0; animation:slowspin 75s linear infinite; }
+  @keyframes slowspin{ to{ transform:rotate(360deg); } }
+  .ring{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); border-radius:50%; pointer-events:none; opacity:.9;
+    -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px));
+            mask:radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); }
+  .ring-core{ position:absolute; top:50%; left:50%; width:64px; height:64px; border-radius:50%; pointer-events:none;
+    transform:translate(-50%,-50%); filter:blur(7px); animation:breathe 10s ease-in-out infinite; }
+  .story-legend{ display:flex; gap:11px; flex-wrap:wrap; justify-content:center; margin-bottom:12px; }
+  .story-legend span{ display:inline-flex; align-items:center; gap:4px; font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); }
+  .story-legend i{ width:6px; height:6px; border-radius:50%; }
+  @media (prefers-reduced-motion:reduce){ .ring-spin{ animation:none; } .ring-core{ animation:none; } }
   .story-thread{ position:relative; padding-left:30px; }
   .story-thread::before{ content:''; position:absolute; left:9px; top:8px; bottom:8px; width:2px;
     background:linear-gradient(var(--line), rgba(94,234,212,.18), var(--line)); border-radius:2px; }
@@ -687,6 +700,28 @@ async function renderStory(){
     const heroT=latest.find(g=>g.user_id!==me), heroM=latest.find(g=>g.user_id===me);
     const firstDate=dates[dates.length-1];
 
+    // ---- concentric rings (newest = outermost) ----
+    const MAXR=18; const ringDates=dates.slice(0, MAXR);
+    const n=ringDates.length, OUT=300, INN=70;
+    const ringR=[];
+    const rings=ringDates.map((d,p)=>{
+      const gs=byDate[d];
+      const mi=gs.find(g=>g.user_id===me), th=gs.find(g=>g.user_id!==me);
+      const tc=th?`var(--${th.mood})`:null, mc=mi?`var(--${mi.mood})`:null;
+      let bg;
+      if(tc&&mc) bg=`conic-gradient(${tc} 0deg 180deg, ${mc} 180deg 360deg)`;
+      else bg = tc||mc;
+      const dia = n===1 ? 150 : Math.round(OUT - (OUT-INN)*(p/(n-1)));
+      ringR.push({date:d, r:dia/2});
+      return `<div class="ring" style="width:${dia}px;height:${dia}px;background:${bg}"></div>`;
+    }).join('');
+    const coreMood=(heroM&&heroM.mood)||(heroT&&heroT.mood)||'calm';
+    const ringHtml=`<div class="ring-stage" id="ringStage">
+        <div class="ring-spin">${rings}</div>
+        <div class="ring-core" style="background:radial-gradient(circle, rgba(255,255,255,.6) 0%, var(--${coreMood}) 55%, transparent 76%)"></div>
+      </div>`;
+    const legend=MOODS.map(m=>`<span><i style="background:${m.color};box-shadow:0 0 6px ${m.color}"></i>${m.label.toLowerCase()}</span>`).join('');
+
     let body='', lastMonth='';
     dates.forEach(d=>{
       const dt=new Date(d+'T00:00');
@@ -715,15 +750,25 @@ async function renderStory(){
     root.innerHTML=`<div class="screen">
       <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Our story</span></div>
       <div class="story-hero">
-        <div class="merge"><div class="glow glow-${(heroT&&heroT.mood)||'calm'} sm a"></div><div class="glow glow-${(heroM&&heroM.mood)||'tender'} sm b"></div></div>
-        <p class="serif-it dim" style="font-size:15px">Every evening you've shared, kept here.</p>
-        <p class="tiny" style="margin-top:6px">since ${fmtDate(firstDate)}</p>
+        ${ringHtml}
+        <div class="story-legend">${legend}</div>
+        <p class="serif-it" style="font-size:17px">${dates.length} ${dates.length===1?'evening':'evenings'} together.</p>
+        <p class="serif-it dim" style="font-size:12px;margin-top:4px">Every evening, a little more light.</p>
+        <p class="tiny" style="margin-top:8px">tap a ring to open that day</p>
       </div>
       <div class="story-thread">${body}</div>
       <div class="faint serif-it" style="text-align:center;margin:22px 0 12px;font-size:11px">no streaks, no scores</div>
     </div>`;
     document.getElementById('back').onclick=renderMenu;
     document.querySelectorAll('.story-day').forEach(el=>{ el.onclick=()=>renderDayLetter(el.dataset.date, renderStory); });
+    const stage=document.getElementById('ringStage');
+    if(stage) stage.onclick=(e)=>{
+      const rect=stage.getBoundingClientRect();
+      const dist=Math.hypot(e.clientX-(rect.left+rect.width/2), e.clientY-(rect.top+rect.height/2));
+      let best=null, bd=1e9;
+      ringR.forEach(rr=>{ const dd=Math.abs(rr.r-dist); if(dd<bd){ bd=dd; best=rr; } });
+      if(best && bd<26) renderDayLetter(best.date, renderStory);
+    };
   }catch(e){ renderError("We could not open your story.", renderStory); }
 }
 
