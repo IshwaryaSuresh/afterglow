@@ -121,11 +121,28 @@
   .cal-num{ font-size:11px; color:var(--ink-faint); }
   .cal-orbs{ display:flex; gap:3px; min-height:8px; align-items:center; }
   .cal-dot{ width:7px; height:7px; border-radius:50%; }
-  .story-row{ display:flex; align-items:center; gap:14px; padding:14px 4px; border-bottom:1px solid var(--line); }
-  .story-glows{ display:flex; gap:8px; width:54px; justify-content:center; flex:0 0 auto; }
-  .story-glows .glow{ width:30px; height:30px; filter:blur(3px); animation:none; }
-  .story-date{ flex:0 0 auto; width:auto; }
-  .story-words{ font-size:14px; }
+  .story-hero{ text-align:center; padding:10px 0 20px; }
+  .story-hero .merge{ width:120px; height:64px; margin:0 auto 14px; }
+  .story-thread{ position:relative; padding-left:30px; }
+  .story-thread::before{ content:''; position:absolute; left:9px; top:8px; bottom:8px; width:2px;
+    background:linear-gradient(var(--line), rgba(94,234,212,.18), var(--line)); border-radius:2px; }
+  .story-month{ font-family:var(--serif); font-style:italic; color:var(--ink-faint); font-size:13px; margin:16px 0 10px; }
+  .story-day{ position:relative; margin-bottom:14px; border:1px solid var(--line); border-radius:18px;
+    padding:15px 16px; background:rgba(230,245,241,.02); cursor:pointer; transition:border-color .2s, background .2s, transform .2s; }
+  .story-day:hover{ border-color:rgba(94,234,212,.28); background:rgba(94,234,212,.04); }
+  .story-day:active{ transform:scale(.99); }
+  .story-day .node{ position:absolute; left:-25px; top:20px; width:10px; height:10px; border-radius:50%;
+    background:var(--bg); border:1px solid rgba(94,234,212,.45); }
+  .story-day .node.both{ background:rgba(94,234,212,.55); box-shadow:0 0 10px rgba(94,234,212,.5); border-color:transparent; }
+  .sd-date{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); }
+  .sd-glows{ display:flex; align-items:center; height:46px; margin:8px 0 4px; }
+  .sd-glows .glow{ width:44px; height:44px; filter:blur(5px); animation:none; mix-blend-mode:screen; }
+  .sd-glows .glow + .glow{ margin-left:-16px; }
+  .sd-line{ font-family:var(--serif); font-size:15px; line-height:1.4; }
+  .sd-line .mood-em{ font-style:italic; }
+  .sd-note{ font-family:var(--serif); font-style:italic; color:var(--ink-dim); font-size:13.5px;
+    margin-top:9px; border-left:1px solid var(--line); padding-left:11px; }
+  .sd-warm{ color:rgba(94,234,212,.7); font-size:11px; letter-spacing:.05em; margin-top:9px; }
 
   /* ---- glow send-off ---- */
   .sent-glow{ animation:sendOff 2.1s cubic-bezier(.4,0,.5,1) forwards; }
@@ -643,37 +660,70 @@ async function renderStory(){
   currentView='story';
   renderLoading();
   try{
-    const { data:glows } = await sb.from('glows').select('*').eq('couple_id', STATE.couple).order('local_date',{ascending:false});
     const me=STATE.user.id;
     const them=esc(STATE.partner?.display_name||'Your person');
+    const [gRes, wRes] = await Promise.all([
+      sb.from('glows').select('*').eq('couple_id', STATE.couple).order('local_date',{ascending:false}),
+      sb.from('warmth').select('to_glow').eq('couple_id', STATE.couple)
+    ]);
+    const glows=gRes.data||[];
+    const glowById={}; glows.forEach(g=>glowById[g.id]=g);
+    const warmDates=new Set();
+    (wRes.data||[]).forEach(w=>{ const g=glowById[w.to_glow]; if(g) warmDates.add(g.local_date); });
+
     const byDate={};
-    (glows||[]).forEach(g=>{ (byDate[g.local_date]=byDate[g.local_date]||[]).push(g); });
+    glows.forEach(g=>{ (byDate[g.local_date]=byDate[g.local_date]||[]).push(g); });
     const dates=Object.keys(byDate).sort().reverse();
-    const rows=dates.map(d=>{
+
+    if(!dates.length){
+      root.innerHTML=`<div class="screen">
+        <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Our story</span></div>
+        <div class="center"><div class="glow glow-calm sm" style="opacity:.5"></div>
+          <p class="dim serif-it" style="max-width:280px">Your story begins with the first glow you share. Come back after tonight.</p></div></div>`;
+      document.getElementById('back').onclick=renderMenu; return;
+    }
+
+    const latest=byDate[dates[0]];
+    const heroT=latest.find(g=>g.user_id!==me), heroM=latest.find(g=>g.user_id===me);
+    const firstDate=dates[dates.length-1];
+
+    let body='', lastMonth='';
+    dates.forEach(d=>{
+      const dt=new Date(d+'T00:00');
+      const mk=dt.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+      if(mk!==lastMonth){ body+=`<div class="story-month">${mk}</div>`; lastMonth=mk; }
       const gs=byDate[d];
       const mine=gs.find(g=>g.user_id===me);
       const theirs=gs.find(g=>g.user_id!==me);
-      const words=[ theirs&&moodLabel(theirs.mood).toLowerCase(), mine&&moodLabel(mine.mood).toLowerCase() ].filter(Boolean).join('  ·  ');
-      return `<div class="story-row" data-date="${d}">
-        <div class="story-glows">
-          ${theirs?`<div class="glow glow-${theirs.mood}"></div>`:''}
-          ${mine?`<div class="glow glow-${mine.mood}"></div>`:''}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div class="story-date tiny">${fmtDate(d)}</div>
-          <div class="story-words serif-it dim">${words}</div>
-        </div>
-        <div class="tiny" style="flex:0 0 auto">›</div>
+      const both=mine&&theirs;
+      let line;
+      if(both) line=`${them} felt <span class="mood-em">${moodLabel(theirs.mood).toLowerCase()}</span> · you felt <span class="mood-em">${moodLabel(mine.mood).toLowerCase()}</span>`;
+      else if(theirs) line=`${them} felt <span class="mood-em">${moodLabel(theirs.mood).toLowerCase()}</span> · <span class="dim">you were quiet</span>`;
+      else line=`you felt <span class="mood-em">${moodLabel(mine.mood).toLowerCase()}</span> · <span class="dim">${them} was quiet</span>`;
+      const note = (theirs&&theirs.shared_note) || (mine&&mine.shared_note) || '';
+      const dayName=dt.toLocaleDateString(undefined,{weekday:'long', day:'numeric'});
+      body+=`<div class="story-day" data-date="${d}">
+        <div class="node ${both?'both':''}"></div>
+        <div class="sd-date">${dayName}</div>
+        <div class="sd-glows">${theirs?`<div class="glow glow-${theirs.mood}"></div>`:''}${mine?`<div class="glow glow-${mine.mood}"></div>`:''}</div>
+        <div class="sd-line">${line}</div>
+        ${note?`<div class="sd-note">&ldquo;${esc(note)}&rdquo;</div>`:''}
+        ${warmDates.has(d)?`<div class="sd-warm">♡ warmth passed between you</div>`:''}
       </div>`;
-    }).join('');
+    });
+
     root.innerHTML=`<div class="screen">
       <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Our story</span></div>
-      <div style="margin-top:18px">
-        ${dates.length?rows:`<p class="dim serif-it" style="text-align:center;margin-top:48px">Your story begins with the first glow you share.</p>`}
-        <div class="faint serif-it" style="text-align:center;margin:24px 0 8px;font-size:11px">no streaks, no scores</div>
-      </div></div>`;
+      <div class="story-hero">
+        <div class="merge"><div class="glow glow-${(heroT&&heroT.mood)||'calm'} sm a"></div><div class="glow glow-${(heroM&&heroM.mood)||'tender'} sm b"></div></div>
+        <p class="serif-it dim" style="font-size:15px">Every evening you've shared, kept here.</p>
+        <p class="tiny" style="margin-top:6px">since ${fmtDate(firstDate)}</p>
+      </div>
+      <div class="story-thread">${body}</div>
+      <div class="faint serif-it" style="text-align:center;margin:22px 0 12px;font-size:11px">no streaks, no scores</div>
+    </div>`;
     document.getElementById('back').onclick=renderMenu;
-    document.querySelectorAll('.story-row').forEach(el=>{ el.style.cursor='pointer'; el.onclick=()=>renderDayLetter(el.dataset.date, renderStory); });
+    document.querySelectorAll('.story-day').forEach(el=>{ el.onclick=()=>renderDayLetter(el.dataset.date, renderStory); });
   }catch(e){ renderError("We could not open your story.", renderStory); }
 }
 
