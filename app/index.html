@@ -214,6 +214,34 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // Register service worker (installable PWA + notifications)
 if('serviceWorker' in navigator){ window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
 
+// Web Push (closed-app notifications). Public key is safe to ship; private key lives only in the Edge Function.
+const VAPID_PUBLIC = "BKjJM3qN5tOKPHwSkr0T7xtmcEEaSE2FQt1uN1cvHIiNLoGq4T6LpQ6cHX8ExEB3TFEdamtLAl-POieg3rUjpNY";
+function urlB64ToUint8Array(b64){
+  const pad='='.repeat((4-b64.length%4)%4);
+  const s=(b64+pad).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=atob(s); const out=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) out[i]=raw.charCodeAt(i);
+  return out;
+}
+async function subscribePush(){
+  try{
+    if(!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){ sub=await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC) }); }
+    const j=sub.toJSON();
+    await sb.from('push_subs').upsert({ endpoint:sub.endpoint, user_id:STATE.user.id, p256dh:j.keys.p256dh, auth:j.keys.auth }, { onConflict:'endpoint' });
+    return true;
+  }catch(e){ return false; }
+}
+async function unsubscribePush(){
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(sub){ await sb.from('push_subs').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+  }catch(e){}
+}
+
 // Keyboard activation for custom (div) buttons: Enter / Space
 document.addEventListener('keydown', (e)=>{
   if(e.key!=='Enter' && e.key!==' ' && e.key!=='Spacebar') return;
@@ -949,6 +977,7 @@ function renderNotif(){
       const res=await Notification.requestPermission();
       if(res==='granted'){
         localStorage.setItem('afterglow_notif','on');
+        await subscribePush();   // register for closed-app push (works once the Edge Function is deployed)
         try{ if(navigator.serviceWorker){ const reg=await navigator.serviceWorker.ready; reg.showNotification('Reminders on', {body:'We will glow gently when '+them+' checks in.', icon:'icon-192.png'}); } }catch(_){}
         vib(12);
       }
@@ -956,7 +985,7 @@ function renderNotif(){
     renderNotif();
   };
   const dis=document.getElementById('disable');
-  if(dis) dis.onclick=()=>{ localStorage.setItem('afterglow_notif','off'); renderNotif(); };
+  if(dis) dis.onclick=async()=>{ localStorage.setItem('afterglow_notif','off'); await unsubscribePush(); renderNotif(); };
 }
 
 // ---- MENU ----
