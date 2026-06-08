@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
 <title>Afterglow</title>
 <meta name="theme-color" content="#061418" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Afterglow" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..500;1,9..144,300..400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
@@ -142,6 +148,9 @@ const SUPABASE_URL = "https://daharpiwvdewulbsdxge.supabase.co";
 const SUPABASE_KEY = "sb_publishable_2XQ4aLiXqT6cE4n42POZpw_7vW4-q09";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Register service worker (installable PWA + notifications)
+if('serviceWorker' in navigator){ window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
+
 const MOODS = [
   {key:'heavy',   label:'Heavy',   color:'var(--heavy)'},
   {key:'calm',    label:'Calm',    color:'var(--calm)'},
@@ -205,9 +214,26 @@ function renderError(msg, retry){
 function subscribeRealtime(){
   if(STATE.realtimeChan) sb.removeChannel(STATE.realtimeChan);
   STATE.realtimeChan = sb.channel('couple-'+STATE.couple)
-    .on('postgres_changes', { event:'*', schema:'public', table:'glows', filter:'couple_id=eq.'+STATE.couple }, ()=>{ if(currentView==='today') renderToday(true); })
-    .on('postgres_changes', { event:'*', schema:'public', table:'warmth', filter:'couple_id=eq.'+STATE.couple }, ()=>{ /* could refresh */ })
+    .on('postgres_changes', { event:'*', schema:'public', table:'glows', filter:'couple_id=eq.'+STATE.couple }, (payload)=>{
+      const g = payload.new;
+      if(payload.eventType==='INSERT' && g && g.user_id!==STATE.user.id) notifyPartnerGlow(g);
+      if(currentView==='today') renderToday(true);
+    })
+    .on('postgres_changes', { event:'*', schema:'public', table:'warmth', filter:'couple_id=eq.'+STATE.couple }, ()=>{ if(currentView==='today') renderToday(true); })
     .subscribe();
+}
+
+// Show a system notification when the partner's glow arrives (app open/backgrounded).
+function notifyPartnerGlow(g){
+  if(localStorage.getItem('afterglow_notif')!=='on') return;
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  const name=(STATE.partner&&STATE.partner.display_name)||'Your person';
+  const opts={ body:name+' felt '+moodLabel(g.mood).toLowerCase()+' today.', icon:'icon-192.png', badge:'icon-192.png', tag:'glow-'+g.id };
+  try{
+    if(navigator.serviceWorker && navigator.serviceWorker.ready){
+      navigator.serviceWorker.ready.then(reg=>reg.showNotification('A glow arrived', opts)).catch(()=>{ try{ new Notification('A glow arrived', opts); }catch(_){} });
+    } else { new Notification('A glow arrived', opts); }
+  }catch(e){}
 }
 
 // ============ VIEWS ============
@@ -713,6 +739,49 @@ async function renderDayLetter(date, backFn){
       </div></div>`;
     document.getElementById('back').onclick=()=>(backFn||renderStory)();
   }catch(e){ renderError("We could not open that day.", ()=>renderDayLetter(date, backFn)); }
+}
+
+// ---- GLOW REMINDERS (notifications) ----
+function renderNotif(){
+  currentView='notif';
+  const them=esc(STATE.partner?.display_name||'your person');
+  const supported = ('Notification' in window);
+  const perm = supported ? Notification.permission : 'unsupported';
+  const on = localStorage.getItem('afterglow_notif')==='on' && perm==='granted';
+  let state;
+  if(!supported){ state='<p class="dim" style="font-size:14px">This device does not support notifications. On iPhone, add Afterglow to your Home Screen first (Share → Add to Home Screen), then reminders can be turned on.</p>'; }
+  else if(perm==='denied'){ state='<p class="dim" style="font-size:14px">Notifications are blocked in your browser settings. Allow them for this site, then come back.</p>'; }
+  else if(on){ state='<p class="serif-it" style="color:rgba(94,234,212,.85)">♡ Reminders are on.</p><p class="dim" style="font-size:13px;margin-top:6px">You will be told gently when '+them+' shares a glow, while Afterglow is open or running in the background.</p>'; }
+  else { state='<p class="dim" style="font-size:14px;max-width:300px">Afterglow can gently let you know when '+them+' shares their glow. No badges, no counts, no pressure, just a quiet nudge.</p>'; }
+
+  root.innerHTML=`<div class="screen">
+    <div class="topbar"><a class="link" id="back">‹ Back</a><span class="tiny">Glow reminders</span></div>
+    <div class="center">
+      <div class="glow glow-calm sm"></div>
+      <h2 class="serif-it">A quiet nudge</h2>
+      ${state}
+      <div style="width:100%;max-width:280px;margin-top:8px">
+        ${(supported && perm!=='denied' && !on)?`<button class="btn" id="enable">Turn on reminders</button>`:''}
+        ${on?`<button class="btn ghost" id="disable">Turn reminders off</button>`:''}
+      </div>
+      <p class="faint serif-it" style="font-size:11px;margin-top:10px;max-width:300px">For a reminder even when the app is fully closed, add Afterglow to your Home Screen.</p>
+    </div></div>`;
+  document.getElementById('back').onclick=renderMenu;
+  const en=document.getElementById('enable');
+  if(en) en.onclick=async()=>{
+    setBtn('enable', true, 'Asking…');
+    try{
+      const res=await Notification.requestPermission();
+      if(res==='granted'){
+        localStorage.setItem('afterglow_notif','on');
+        try{ if(navigator.serviceWorker){ const reg=await navigator.serviceWorker.ready; reg.showNotification('Reminders on', {body:'We will glow gently when '+them+' checks in.', icon:'icon-192.png'}); } }catch(_){}
+        vib(12);
+      }
+    }catch(e){}
+    renderNotif();
+  };
+  const dis=document.getElementById('disable');
+  if(dis) dis.onclick=()=>{ localStorage.setItem('afterglow_notif','off'); renderNotif(); };
 }
 
 // ---- MENU ----
