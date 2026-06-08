@@ -123,15 +123,15 @@
   .cal-dot{ width:7px; height:7px; border-radius:50%; }
   .story-hero{ text-align:center; padding:10px 0 18px; }
   .story-hero .merge{ width:120px; height:64px; margin:0 auto 14px; }
-  /* concentric story rings (each ring = a day, newest outermost) */
-  .ring-stage{ position:relative; width:300px; height:300px; margin:4px auto 14px; cursor:pointer; }
-  .ring-spin{ position:absolute; inset:0; animation:slowspin 75s linear infinite; }
+  /* concentric story rings (each ring = a day, newest outermost) — soft luminous halos */
+  .ring-stage{ position:relative; width:320px; height:320px; margin:6px auto 16px; cursor:pointer; }
+  .ring-spin{ position:absolute; inset:0; animation:slowspin 90s linear infinite; }
   @keyframes slowspin{ to{ transform:rotate(360deg); } }
-  .ring{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); border-radius:50%; pointer-events:none; opacity:.9;
-    -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px));
-            mask:radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); }
-  .ring-core{ position:absolute; top:50%; left:50%; width:64px; height:64px; border-radius:50%; pointer-events:none;
-    transform:translate(-50%,-50%); filter:blur(7px); animation:breathe 10s ease-in-out infinite; }
+  .ring{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); border-radius:50%; pointer-events:none;
+    border:1px solid currentColor; box-shadow:0 0 16px 1px currentColor, inset 0 0 14px 0 currentColor; opacity:.45; }
+  .ring-core{ position:absolute; top:50%; left:50%; width:120px; height:120px; border-radius:50%; pointer-events:none;
+    transform:translate(-50%,-50%); filter:blur(5px); animation:coreBreathe 10s ease-in-out infinite; }
+  @keyframes coreBreathe{ 0%,100%{ transform:translate(-50%,-50%) scale(1); opacity:.94 } 50%{ transform:translate(-50%,-50%) scale(1.08); opacity:1 } }
   .story-legend{ display:flex; gap:11px; flex-wrap:wrap; justify-content:center; margin-bottom:12px; }
   .story-legend span{ display:inline-flex; align-items:center; gap:4px; font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); }
   .story-legend i{ width:6px; height:6px; border-radius:50%; }
@@ -700,25 +700,26 @@ async function renderStory(){
     const heroT=latest.find(g=>g.user_id!==me), heroM=latest.find(g=>g.user_id===me);
     const firstDate=dates[dates.length-1];
 
-    // ---- concentric rings (newest = outermost) ----
-    const MAXR=18; const ringDates=dates.slice(0, MAXR);
-    const n=ringDates.length, OUT=300, INN=70;
+    // ---- concentric rings (newest = outermost), each ring a day, glow = blend of both moods ----
+    const MOODHEX={heavy:'#2E3A6E',calm:'#2FA8A0',content:'#E0A24B',joyful:'#E87B83',tender:'#7B5BD6'};
+    const h2=h=>{h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16));};
+    const mix=(a,b)=>'#'+[0,1,2].map(i=>Math.round((h2(a)[i]+h2(b)[i])/2).toString(16).padStart(2,'0')).join('');
+    const dayColor=gs=>{ const mi=gs.find(g=>g.user_id===me), th=gs.find(g=>g.user_id!==me);
+      const a=th&&MOODHEX[th.mood], b=mi&&MOODHEX[mi.mood];
+      return (a&&b)?mix(a,b):(a||b||'#2FA8A0'); };
+    const MAXR=7, GAP=44, OUT=316;
+    const ringDates=dates.slice(0, MAXR);
+    const n=ringDates.length;
     const ringR=[];
     const rings=ringDates.map((d,p)=>{
-      const gs=byDate[d];
-      const mi=gs.find(g=>g.user_id===me), th=gs.find(g=>g.user_id!==me);
-      const tc=th?`var(--${th.mood})`:null, mc=mi?`var(--${mi.mood})`:null;
-      let bg;
-      if(tc&&mc) bg=`conic-gradient(${tc} 0deg 180deg, ${mc} 180deg 360deg)`;
-      else bg = tc||mc;
-      const dia = n===1 ? 150 : Math.round(OUT - (OUT-INN)*(p/(n-1)));
+      const dia = n===1 ? 168 : (OUT - p*GAP);
       ringR.push({date:d, r:dia/2});
-      return `<div class="ring" style="width:${dia}px;height:${dia}px;background:${bg}"></div>`;
+      return `<div class="ring" style="width:${dia}px;height:${dia}px;color:${dayColor(byDate[d])}"></div>`;
     }).join('');
-    const coreMood=(heroM&&heroM.mood)||(heroT&&heroT.mood)||'calm';
+    const coreCol=dayColor(latest);
     const ringHtml=`<div class="ring-stage" id="ringStage">
         <div class="ring-spin">${rings}</div>
-        <div class="ring-core" style="background:radial-gradient(circle, rgba(255,255,255,.6) 0%, var(--${coreMood}) 55%, transparent 76%)"></div>
+        <div class="ring-core" style="background:radial-gradient(circle, #ffffff 0%, rgba(255,255,255,.85) 16%, ${coreCol} 46%, rgba(6,20,24,0) 74%); box-shadow:0 0 56px 10px ${coreCol}88"></div>
       </div>`;
     const legend=MOODS.map(m=>`<span><i style="background:${m.color};box-shadow:0 0 6px ${m.color}"></i>${m.label.toLowerCase()}</span>`).join('');
 
