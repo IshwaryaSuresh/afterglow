@@ -271,10 +271,50 @@ function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>
 let STATE = { user:null, profile:null, couple:null, partner:null, realtimeChan:null };
 
 // ============ AUTH BOOT ============
+// ============ NATIVE BILLING (RevenueCat) — no-op on web ============
+const RC = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins)
+  ? (window.Capacitor.Plugins.Purchases || null) : null;
+const RC_KEYS = { ios:"appl_REPLACE_ME", android:"goog_REPLACE_ME" };  // paste your RevenueCat public keys
+const BILLING_ENABLED = false;   // flip to true once RevenueCat keys + store products (7-day trial) are live
+let rcReady = false;
+async function rcInit(){
+  if(!RC || rcReady) return rcReady;
+  try{ const p=window.Capacitor.getPlatform(); await RC.configure({ apiKey: p==='ios'?RC_KEYS.ios:RC_KEYS.android }); rcReady=true; }catch(e){}
+  return rcReady;
+}
+async function hasPro(){
+  if(!RC) return true;                       // web is always unlocked
+  try{ await rcInit(); const r=await RC.getCustomerInfo(); return !!(r.customerInfo.entitlements.active && r.customerInfo.entitlements.active['pro']); }
+  catch(e){ return false; }
+}
+async function renderPaywall(opts){
+  opts=opts||{}; currentView='paywall';
+  let price='', pkg=null;
+  if(RC){ try{ await rcInit(); const o=await RC.getOfferings(); pkg=o.current && o.current.availablePackages && o.current.availablePackages[0]; price=(pkg&&pkg.product&&pkg.product.priceString)||''; }catch(e){} }
+  root.innerHTML=`<div class="screen"><div class="center">
+    <div class="glow glow-tender lg"></div>
+    <h1 style="font-size:27px;max-width:330px">A quiet place, just for two.</h1>
+    <p class="dim" style="max-width:320px;font-size:15px">Afterglow is one gentle ritual a day. Try it free for 7 days.${price?(' Then '+esc(price)+'/month.'):''} Cancel anytime.</p>
+    <button class="btn" id="startTrial" style="max-width:300px">Start 7-day free trial</button>
+    <button class="btn ghost" id="restore" style="max-width:300px">Restore purchase</button>
+    ${opts.preview?'<a class="link" id="skip" role="button" tabindex="0" style="margin-top:6px">Continue (preview)</a>':''}
+    <p class="faint serif-it" style="font-size:11px;max-width:300px;margin-top:8px">No ads, no streaks. Your private note is always yours.</p>
+  </div></div>`;
+  document.getElementById('startTrial').onclick=async()=>{
+    if(!RC || !pkg){ toast(opts.preview?'Preview only — connect RevenueCat to enable.':'Store unavailable. Try again.'); return; }
+    setBtn('startTrial', true, 'Opening…');
+    try{ await RC.purchasePackage({ aPackage:pkg }); if(await hasPro()){ boot(); return; } }catch(e){}
+    setBtn('startTrial', false, 'Start 7-day free trial');
+  };
+  document.getElementById('restore').onclick=async()=>{ if(!RC) return; try{ await RC.restorePurchases(); }catch(e){} if(await hasPro()) boot(); else toast('No purchase found.'); };
+  const sk=document.getElementById('skip'); if(sk) sk.onclick=()=> STATE.user?loadContext():renderAuth();
+}
+
 async function boot(){
   const { data:{ session } } = await sb.auth.getSession();
   if(!session){ renderAuth(); return; }
   STATE.user = session.user;
+  if(RC && BILLING_ENABLED && !(await hasPro())){ renderPaywall(); return; }   // gate native users behind the trial
   await loadContext();
 }
 sb.auth.onAuthStateChange((_e, session)=>{
@@ -1006,6 +1046,7 @@ function renderMenu(){
         <button class="btn" id="story">Our story</button>
         <button class="btn ghost" id="calendar">Calendar</button>
         <button class="btn ghost" id="notif">Glow reminders</button>
+        ${RC?`<button class="btn ghost" id="paywall">Preview paywall</button>`:''}
         <button class="btn ghost" id="signout">Sign out</button>
       </div>
     </div></div>`;
@@ -1013,6 +1054,7 @@ function renderMenu(){
   document.getElementById('story').onclick=()=>renderStory();
   document.getElementById('calendar').onclick=()=>renderCalendar(0);
   document.getElementById('notif').onclick=()=>renderNotif();
+  const pw=document.getElementById('paywall'); if(pw) pw.onclick=()=>renderPaywall({preview:true});
   document.getElementById('signout').onclick=()=>sb.auth.signOut();
 }
 
