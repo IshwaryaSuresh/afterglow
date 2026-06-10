@@ -58,7 +58,7 @@
     cursor:pointer; box-shadow:0 0 30px rgba(94,234,212,.14); margin-top:14px; transition:box-shadow .2s; }
   .btn:hover{ box-shadow:0 0 42px rgba(94,234,212,.26); }
   .btn:disabled{ opacity:.5; cursor:default; box-shadow:none; }
-  .btn.ghost{ background:transparent; border-color:var(--line); color:var(--ink-dim); box-shadow:none; }
+  .btn.ghost{ background:transparent; border-color:rgba(230,245,241,0.20); color:var(--ink-dim); box-shadow:none; }
   .link{ color:var(--accent); cursor:pointer; text-decoration:none; font-size:14px; background:none; border:0;
     font-family:inherit; min-height:44px; display:inline-flex; align-items:center; padding:8px; margin:-8px; }
   .iconbtn{ background:none; border:0; color:var(--ink); cursor:pointer; min-width:44px; min-height:44px;
@@ -132,6 +132,8 @@
   .cal-num{ font-size:11px; color:var(--ink-faint); }
   .cal-orbs{ display:flex; gap:3px; min-height:8px; align-items:center; }
   .cal-dot{ width:7px; height:7px; border-radius:50%; }
+  .cal-dot.mine{ outline:1.5px solid rgba(230,245,241,.75); outline-offset:1px; }
+  body.bg-paused .glow, body.bg-paused .ring-core, body.bg-paused .ring-spin{ animation-play-state:paused; }
   .story-hero{ text-align:center; padding:10px 0 18px; }
   .story-hero .merge{ width:120px; height:64px; margin:0 auto 14px; }
   /* concentric story rings (each ring = a day, newest outermost) — soft luminous halos */
@@ -242,6 +244,9 @@ async function unsubscribePush(){
   }catch(e){}
 }
 
+// Pause ambient animations when the app is hidden (battery)
+document.addEventListener('visibilitychange', ()=>{ document.body.classList.toggle('bg-paused', document.hidden); });
+
 // Keyboard activation for custom (div) buttons: Enter / Space
 document.addEventListener('keydown', (e)=>{
   if(e.key!=='Enter' && e.key!==' ' && e.key!=='Spacebar') return;
@@ -298,7 +303,10 @@ async function renderPaywall(opts){
     <button class="btn" id="startTrial" style="max-width:300px">Start 7-day free trial</button>
     <button class="btn ghost" id="restore" style="max-width:300px">Restore purchase</button>
     ${opts.preview?'<a class="link" id="skip" role="button" tabindex="0" style="margin-top:6px">Continue (preview)</a>':''}
-    <p class="faint serif-it" style="font-size:11px;max-width:300px;margin-top:8px">No ads, no streaks. Your private note is always yours.</p>
+    <p class="faint serif-it" style="font-size:12px;max-width:300px;margin-top:8px">No ads, no streaks. Your private note is always yours.</p>
+    <p class="faint" style="font-size:12px;margin-top:4px">Auto-renews monthly after the trial · cancel anytime in your store settings.<br>
+      <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
+      <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
   </div></div>`;
   document.getElementById('startTrial').onclick=async()=>{
     if(!RC || !pkg){ toast(opts.preview?'Preview only — connect RevenueCat to enable.':'Store unavailable. Try again.'); return; }
@@ -317,7 +325,8 @@ async function boot(){
   if(RC && BILLING_ENABLED && !(await hasPro())){ renderPaywall(); return; }   // gate native users behind the trial
   await loadContext();
 }
-sb.auth.onAuthStateChange((_e, session)=>{
+sb.auth.onAuthStateChange((event, session)=>{
+  if(event==='PASSWORD_RECOVERY'){ STATE.user = session && session.user; renderNewPassword(); return; }
   if(!session){ STATE={user:null,profile:null,couple:null,partner:null,realtimeChan:null}; renderAuth(); }
 });
 
@@ -327,9 +336,19 @@ async function loadContext(){
     // profile
     let { data:prof } = await sb.from('profiles').select('*').eq('id', STATE.user.id).single();
     STATE.profile = prof;
+    // OAuth users arrive without a chosen name — adopt the one Google/Apple provided
+    if(prof && prof.display_name==='Someone'){
+      const m=STATE.user.user_metadata||{};
+      const nm=(m.display_name||m.full_name||m.name||'').trim().split(' ')[0];
+      if(nm){ await sb.from('profiles').update({ display_name:nm }).eq('id', STATE.user.id); STATE.profile.display_name=nm; }
+    }
     // couple
     let { data:mem } = await sb.from('couple_members').select('couple_id').eq('user_id', STATE.user.id).limit(1).maybeSingle();
-    if(!mem){ STATE.couple=null; renderPairing(); return; }
+    if(!mem){
+      STATE.couple=null;
+      if(!localStorage.getItem('afterglow_arrived')){ renderArrival(renderPairing); return; }
+      renderPairing(); return;
+    }
     STATE.couple = mem.couple_id;
     // partner
     let { data:members } = await sb.from('couple_members').select('user_id').eq('couple_id', STATE.couple);
@@ -387,9 +406,17 @@ function closeBar(title){
 }
 
 // ---- AUTH ----
+const LEGAL_BASE = "https://ishwaryasuresh.github.io/afterglow";
+function legalFooter(){
+  return `<p class="faint" style="font-size:12px;margin-top:14px">By continuing you agree to the
+    <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
+    <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>`;
+}
+
 function renderAuth(mode){
   currentView='auth'; mode = mode || 'in';
   const signup = mode==='up';
+  const social = !RC; // Google blocks OAuth in plain native webviews — social is web/PWA only for now
   root.innerHTML = `
   <div class="screen">
     <div class="center">
@@ -397,17 +424,33 @@ function renderAuth(mode){
       <h1 style="margin-top:6px">Afterglow</h1>
       <p class="serif-it dim">Presence that remembers.</p>
       <div style="width:100%;max-width:340px;margin-top:22px">
+        ${social?`
+        <button class="btn ghost" id="google" style="margin-top:0"><svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l6.2 5.2C41.4 35.3 44 30.1 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg> Continue with Google</button>
+        <button class="btn ghost" id="apple" style="margin-top:10px"> Continue with Apple</button>
+        <div style="display:flex;align-items:center;gap:12px;margin:16px 0 4px"><span style="flex:1;height:1px;background:var(--line)"></span><span class="tiny">or with email</span><span style="flex:1;height:1px;background:var(--line)"></span></div>
+        `:''}
         ${signup?'<input id="name" placeholder="Your name" autocomplete="name" />':''}
         <input id="email" type="email" placeholder="you@email.com" autocomplete="email" />
         <input id="pass" type="password" placeholder="Password" autocomplete="${signup?'new-password':'current-password'}" />
+        ${!signup?'<p style="text-align:right;margin-top:8px"><a class="link" id="forgot" style="font-size:13px">Forgot password?</a></p>':''}
         <div class="err" id="autherr"></div>
         <button class="btn" id="authbtn">${signup?'Create account':'Sign in'}</button>
         <p style="margin-top:16px" class="dim">${signup?'Already have an account?':'New here?'}
           <a class="link" id="toggle">${signup?'Sign in':'Create one'}</a></p>
+        ${legalFooter()}
       </div>
     </div>
   </div>`;
   document.getElementById('toggle').onclick=()=>renderAuth(signup?'in':'up');
+  const fg=document.getElementById('forgot'); if(fg) fg.onclick=()=>renderResetRequest();
+  const oauth=async(provider)=>{
+    try{
+      const { error } = await sb.auth.signInWithOAuth({ provider, options:{ redirectTo: location.origin + location.pathname } });
+      if(error) throw error;
+    }catch(e){ toast(provider==='google'?'Google sign-in is not set up yet.':'Apple sign-in is not set up yet.'); }
+  };
+  const g=document.getElementById('google'); if(g) g.onclick=()=>oauth('google');
+  const a=document.getElementById('apple'); if(a) a.onclick=()=>oauth('apple');
   document.getElementById('authbtn').onclick=async()=>{
     const email=val('email'), pass=val('pass'), name=val('name');
     const errEl=document.getElementById('autherr'); errEl.textContent='';
@@ -421,7 +464,7 @@ function renderAuth(mode){
         if(!session){ // email confirmation is on
           root.innerHTML='<div class="screen"><div class="center"><div class="glow glow-calm"></div><h2>Check your email</h2><p class="dim">Confirm your address, then come back and sign in.</p><button class="btn ghost" onclick="location.reload()">Back</button></div></div>'; return;
         }
-        STATE.user=session.user; await loadContext();
+        STATE.user=session.user; localStorage.removeItem('afterglow_arrived'); await loadContext();
       } else {
         const { data, error } = await sb.auth.signInWithPassword({ email, password:pass });
         if(error) throw error;
@@ -429,6 +472,70 @@ function renderAuth(mode){
       }
     }catch(e){ errEl.textContent = e.message || 'Something went wrong.'; setBtn('authbtn', false, signup?'Create account':'Sign in'); }
   };
+}
+
+// ---- FORGOT PASSWORD ----
+function renderResetRequest(){
+  currentView='reset';
+  root.innerHTML=`<div class="screen">
+    ${closeBar('Reset password')}
+    <div class="center">
+      <div class="glow glow-calm sm"></div>
+      <h2>We'll send you a link.</h2>
+      <p class="dim" style="max-width:300px;font-size:14px">Enter your email and we'll send a link to set a new password.</p>
+      <div style="width:100%;max-width:340px">
+        <input id="remail" type="email" placeholder="you@email.com" autocomplete="email" />
+        <div class="err" id="rerr"></div>
+        <button class="btn" id="sendreset">Send reset link</button>
+      </div>
+    </div></div>`;
+  document.getElementById('back').onclick=()=>renderAuth('in');
+  document.getElementById('sendreset').onclick=async()=>{
+    const email=val('remail'); const errEl=document.getElementById('rerr'); errEl.textContent='';
+    if(!email){ errEl.textContent='Your email, please.'; return; }
+    setBtn('sendreset', true, 'Sending…');
+    try{
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+      if(error) throw error;
+      root.innerHTML='<div class="screen"><div class="center"><div class="glow glow-calm"></div><h2>Check your email</h2><p class="dim" style="max-width:300px">If that address has an account, a reset link is on its way. Open it on this device.</p><button class="btn ghost" id="back2" style="max-width:240px">Back to sign in</button></div></div>';
+      document.getElementById('back2').onclick=()=>renderAuth('in');
+    }catch(e){ errEl.textContent=e.message||'Could not send the link.'; setBtn('sendreset', false, 'Send reset link'); }
+  };
+}
+function renderNewPassword(){
+  currentView='newpass';
+  root.innerHTML=`<div class="screen"><div class="center">
+    <div class="glow glow-calm sm"></div>
+    <h2>Choose a new password</h2>
+    <div style="width:100%;max-width:340px">
+      <input id="np1" type="password" placeholder="New password" autocomplete="new-password" />
+      <div class="err" id="nperr"></div>
+      <button class="btn" id="setpass">Save and continue</button>
+    </div></div></div>`;
+  document.getElementById('setpass').onclick=async()=>{
+    const p=val('np1'); const errEl=document.getElementById('nperr'); errEl.textContent='';
+    if(p.length<6){ errEl.textContent='At least 6 characters, please.'; return; }
+    setBtn('setpass', true, 'Saving…');
+    try{
+      const { error } = await sb.auth.updateUser({ password:p });
+      if(error) throw error;
+      toast('Password updated.');
+      const { data:{ session } } = await sb.auth.getSession();
+      if(session){ STATE.user=session.user; await loadContext(); } else renderAuth('in');
+    }catch(e){ errEl.textContent=e.message||'Could not save.'; setBtn('setpass', false, 'Save and continue'); }
+  };
+}
+
+// ---- ARRIVAL (one breath of context after first sign-up) ----
+function renderArrival(next){
+  currentView='arrival';
+  root.innerHTML=`<div class="screen"><div class="center">
+    <div class="merge" style="width:170px;height:90px"><div class="glow glow-calm sm a"></div><div class="glow glow-content sm b"></div></div>
+    <h1 style="font-size:26px;max-width:320px">One quiet check-in a day, shared with one person.</h1>
+    <p class="dim" style="max-width:300px;font-size:15px">Each evening, you share how today felt — as a soft glow, a word, a note. Your person does the same. That's all. No streaks, no scores.</p>
+    <button class="btn" id="begin" style="max-width:280px">Begin</button>
+  </div></div>`;
+  document.getElementById('begin').onclick=()=>{ localStorage.setItem('afterglow_arrived','1'); next(); };
 }
 
 // ---- PAIRING ----
@@ -526,7 +633,7 @@ async function renderToday(silent){
       : `<div class="tiny" style="margin-top:14px">Tap to sit with it →</div>`;
     partnerBlock = `
       <div class="card" id="partnerCard" role="button" tabindex="0" aria-label="Sit with ${esc(partnerName)}'s glow" style="cursor:pointer">
-        <div class="glow glow-${theirs.mood}" style="margin:4px auto 16px"></div>
+        <div class="glow glow-${theirs.mood}" style="margin:4px auto 16px${mine?'':';width:112px;height:112px'}"></div>
         <div style="font-family:var(--serif);font-size:19px">${esc(partnerName)} felt <em class="serif-it">${moodLabel(theirs.mood).toLowerCase()}</em> today.</div>
         ${theirs.shared_note?`<div class="serif-it dim" style="font-size:13px;margin-top:6px">${esc(theirs.shared_note)}</div>`:''}
         ${footer}
@@ -565,7 +672,7 @@ async function renderToday(silent){
         <div class="merge" style="margin:0 auto 8px;width:160px;height:80px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>
         <div class="serif-it">You're both here.</div></div>`:''}
       ${mineBlock}
-      <div class="faint serif-it" style="text-align:center;margin-top:8px;font-size:11px">no streaks, no scores</div>
+      <div class="faint serif-it" style="text-align:center;margin-top:8px;font-size:12px">no streaks, no scores</div>
     </div>
   </div>`;
 
@@ -775,7 +882,7 @@ function renderTogether(mine,theirs){
       </div>
       <h2 class="serif-it" id="tgTitle" style="opacity:0;transition:opacity .9s">You're both here.</h2>
       <p class="dim" id="tgSub" style="opacity:0;transition:opacity .9s;max-width:300px">${them} felt ${moodLabel(theirs.mood).toLowerCase()}. You felt ${moodLabel(mine.mood).toLowerCase()}. Tonight your lights overlap.</p>
-      <p class="faint serif-it" style="font-size:11px;margin-top:4px">stay a moment</p>
+      <p class="faint serif-it" style="font-size:12px;margin-top:4px">stay a moment</p>
     </div></div>`;
   document.getElementById('back').onclick=renderToday;
   const reveal=()=>{ const t=document.getElementById('tgTitle'),s=document.getElementById('tgSub');
@@ -877,7 +984,7 @@ async function renderStory(){
         ${dates.length>1?`<p class="tiny" style="margin-top:10px">tap a ring to revisit a day</p>`:''}
       </div>
       <div class="story-thread">${body}</div>
-      <div class="faint serif-it" style="text-align:center;margin:22px 0 12px;font-size:11px">no streaks, no scores</div>
+      <div class="faint serif-it" style="text-align:center;margin:22px 0 12px;font-size:12px">no streaks, no scores</div>
     </div>`;
     document.getElementById('back').onclick=renderMenu;
     document.querySelectorAll('.story-day').forEach(el=>{ el.onclick=()=>renderDayLetter(el.dataset.date, renderStory); });
@@ -907,15 +1014,15 @@ async function renderCalendar(offset){
     const startDow=new Date(y,m,1).getDay(); const days=new Date(y,m+1,0).getDate();
     const todayS=todayLocal();
     const monthName=base.toLocaleDateString(undefined,{month:'long',year:'numeric'});
-    const dot=g=>g?`<span class="cal-dot" style="background:var(--${g.mood});box-shadow:0 0 6px var(--${g.mood})"></span>`:'';
+    const dot=(g,mineDot)=>g?`<span class="cal-dot ${mineDot?'mine':''}" style="background:var(--${g.mood});box-shadow:0 0 6px var(--${g.mood})"></span>`:'';
     let cells='';
-    ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>cells+=`<div class="cal-h tiny" aria-hidden="true">${d[0]}</div>`);
+    ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>cells+=`<div class="cal-h tiny" aria-hidden="true">${d}</div>`);
     for(let i=0;i<startDow;i++) cells+=`<div aria-hidden="true"></div>`;
     for(let d=1; d<=days; d++){
       const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const tg=themBy[ds], mg=mineBy[ds], has=tg||mg;
       cells+=`<div class="cal-cell ${has?'has':''} ${ds===todayS?'today':''}" data-date="${ds}">
-        <div class="cal-orbs">${dot(tg)}${dot(mg)}</div><span class="cal-num">${d}</span></div>`;
+        <div class="cal-orbs">${dot(tg,false)}${dot(mg,true)}</div><span class="cal-num">${d}</span></div>`;
     }
     const canForward = offset<0;  // never navigate into the future
     root.innerHTML=`<div class="screen">
@@ -926,7 +1033,7 @@ async function renderCalendar(offset){
         <button class="iconbtn" id="nextM" aria-label="Next month" ${canForward?'':'disabled aria-disabled="true"'}>›</button>
       </div>
       <div class="cal-grid">${cells}</div>
-      <div class="faint serif-it" style="text-align:center;margin-top:18px;font-size:11px">each light is a day you showed up</div>
+      <div class="faint serif-it" style="text-align:center;margin-top:18px;font-size:12px">each light is a day you showed up · the ringed light is yours</div>
     </div>`;
     document.getElementById('back').onclick=renderMenu;
     document.getElementById('prevM').onclick=()=>renderCalendar(offset-1);
@@ -974,7 +1081,7 @@ async function renderDayLetter(date, backFn){
 
     const both=mine&&theirs;
     root.innerHTML=`<div class="screen">
-      ${closeBar('a day')}
+      ${closeBar(dt.toLocaleDateString(undefined,{day:'numeric',month:'short'}))}
       <div class="letter-head" style="margin-top:14px">
         ${both?`<div class="merge letter-merge" style="width:120px;height:60px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>`:''}
         <h1>${weekday}</h1>
@@ -984,7 +1091,7 @@ async function renderDayLetter(date, backFn){
       ${both?`<div class="lp-divider"></div>`:''}
       ${passage(mine, 'You', warmToMine?'♡ '+them+' sat with your glow':'', true)}
       ${(!mine&&!theirs)?`<p class="dim serif-it" style="text-align:center;margin-top:48px">A quiet day. No glow was shared.</p>`:''}
-      <div class="faint serif-it" style="text-align:center;margin:24px 0 12px;font-size:11px">kept, just as it was</div>
+      <div class="faint serif-it" style="text-align:center;margin:24px 0 12px;font-size:12px">kept, just as it was</div>
     </div>`;
     document.getElementById('back').onclick=()=>(backFn||renderStory)();
   }catch(e){ renderError("We could not open that day.", ()=>renderDayLetter(date, backFn)); }
@@ -1013,7 +1120,7 @@ function renderNotif(){
         ${(supported && perm!=='denied' && !on)?`<button class="btn" id="enable">Turn on reminders</button>`:''}
         ${on?`<button class="btn ghost" id="disable">Turn reminders off</button>`:''}
       </div>
-      <p class="faint serif-it" style="font-size:11px;margin-top:10px;max-width:300px">For a reminder even when the app is fully closed, add Afterglow to your Home Screen.</p>
+      <p class="faint serif-it" style="font-size:12px;margin-top:10px;max-width:300px">For a reminder even when the app is fully closed, add Afterglow to your Home Screen.</p>
     </div></div>`;
   document.getElementById('back').onclick=renderMenu;
   const en=document.getElementById('enable');
@@ -1046,8 +1153,9 @@ function renderMenu(){
         <button class="btn" id="story">Our story</button>
         <button class="btn ghost" id="calendar">Calendar</button>
         <button class="btn ghost" id="notif">Glow reminders</button>
-        ${RC?`<button class="btn ghost" id="paywall">Preview paywall</button>`:''}
+        ${(RC && !BILLING_ENABLED)?`<button class="btn ghost" id="paywall">Preview paywall</button>`:''}
         <button class="btn ghost" id="signout">Sign out</button>
+        <button class="btn ghost" id="account" style="border-color:transparent;color:var(--ink-faint)">Account &amp; privacy</button>
       </div>
     </div></div>`;
   document.getElementById('back').onclick=renderToday;
@@ -1056,6 +1164,78 @@ function renderMenu(){
   document.getElementById('notif').onclick=()=>renderNotif();
   const pw=document.getElementById('paywall'); if(pw) pw.onclick=()=>renderPaywall({preview:true});
   document.getElementById('signout').onclick=()=>sb.auth.signOut();
+  document.getElementById('account').onclick=()=>renderAccount();
+}
+
+// ---- ACCOUNT & PRIVACY (unpair / delete) ----
+function renderAccount(){
+  currentView='account';
+  const them=esc(STATE.partner?.display_name||'your person');
+  root.innerHTML=`<div class="screen">
+    ${closeBar('Account & privacy')}
+    <div class="center">
+      <h2 class="serif-it">Yours to keep, yours to end.</h2>
+      <p class="dim" style="max-width:310px;font-size:14px">Afterglow holds something tender. You are always free to step away from it — gently or completely.</p>
+      <div style="width:100%;max-width:300px;display:flex;flex-direction:column;gap:10px;margin-top:14px">
+        ${STATE.couple?`<button class="btn ghost" id="unpair">Unpair from ${them}</button>`:''}
+        <button class="btn ghost" id="delacct" style="border-color:rgba(255,155,155,.35);color:#ff9b9b">Delete my account</button>
+      </div>
+      <p class="faint" style="font-size:12px;max-width:300px;margin-top:14px">
+        <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
+        <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
+    </div></div>`;
+  document.getElementById('back').onclick=renderMenu;
+  const up=document.getElementById('unpair');
+  if(up) up.onclick=()=>confirmDanger({
+    title:'Unpair from '+them+'?',
+    body:'This unpairs you both and lets your shared story rest. Every glow, note, and warmth you shared is deleted for both of you. Your accounts stay. This cannot be undone.',
+    confirmLabel:'Unpair and let it rest',
+    onConfirm: doUnpair
+  });
+  document.getElementById('delacct').onclick=()=>confirmDanger({
+    title:'Delete your account?',
+    body:'This deletes your account, your glows, your private notes, and your shared story with '+them+' — for both of you. It cannot be undone.',
+    confirmLabel:'Delete everything',
+    onConfirm: doDeleteAccount
+  });
+}
+function confirmDanger(o){
+  currentView='confirm';
+  root.innerHTML=`<div class="screen"><div class="center">
+    <div class="glow glow-heavy sm" style="opacity:.7"></div>
+    <h2 style="max-width:300px">${o.title}</h2>
+    <p class="dim" style="max-width:300px;font-size:14px">${o.body}</p>
+    <div style="width:100%;max-width:300px;display:flex;flex-direction:column;gap:10px;margin-top:12px">
+      <button class="btn ghost" id="keep">Keep things as they are</button>
+      <button class="btn ghost" id="confirmDo" style="border-color:rgba(255,155,155,.4);color:#ff9b9b">${o.confirmLabel}</button>
+    </div>
+    <div class="err" id="dangererr"></div>
+  </div></div>`;
+  document.getElementById('keep').onclick=renderAccount;
+  document.getElementById('confirmDo').onclick=async()=>{
+    setBtn('confirmDo', true, 'One moment…');
+    try{ await o.onConfirm(); }
+    catch(e){ document.getElementById('dangererr').textContent=e.message||'That did not work. Nothing was changed.'; setBtn('confirmDo', false, o.confirmLabel); }
+  };
+}
+async function doUnpair(){
+  const { error } = await sb.rpc('unpair');
+  if(error) throw error;
+  if(STATE.realtimeChan){ sb.removeChannel(STATE.realtimeChan); STATE.realtimeChan=null; }
+  STATE.couple=null; STATE.partner=null;
+  toast('Unpaired. Be gentle with yourself.');
+  renderPairing();
+}
+async function doDeleteAccount(){
+  const { data:{ session } } = await sb.auth.getSession();
+  const res = await fetch(SUPABASE_URL+'/functions/v1/delete-account', {
+    method:'POST',
+    headers:{ 'Authorization':'Bearer '+session.access_token, 'apikey':SUPABASE_KEY, 'Content-Type':'application/json' }
+  });
+  if(!res.ok){ throw new Error('Could not delete the account right now.'); }
+  try{ await unsubscribePush(); }catch(e){}
+  await sb.auth.signOut();
+  toast('Your account is gone. Take care.');
 }
 
 // ============ utils ============
