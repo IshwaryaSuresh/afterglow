@@ -247,6 +247,18 @@ async function unsubscribePush(){
 // Pause ambient animations when the app is hidden (battery)
 document.addEventListener('visibilitychange', ()=>{ document.body.classList.toggle('bg-paused', document.hidden); });
 
+// When a view re-renders, focus drops to <body>; move it to the new screen's heading
+// so screen readers announce the navigation. (Never steals focus mid-interaction.)
+window.addEventListener('load', ()=>{
+  const rootEl=document.getElementById('root');
+  if(!rootEl || !window.MutationObserver) return;
+  new MutationObserver(()=>{
+    if(document.activeElement!==document.body) return;
+    const h=rootEl.querySelector('h1, h2');
+    if(h){ h.setAttribute('tabindex','-1'); try{ h.focus(); }catch(e){} }
+  }).observe(rootEl, { childList:true });
+});
+
 // Keyboard activation for custom (div) buttons: Enter / Space
 document.addEventListener('keydown', (e)=>{
   if(e.key!=='Enter' && e.key!==' ' && e.key!=='Spacebar') return;
@@ -366,7 +378,7 @@ async function loadContext(){
 
 function renderError(msg, retry){
   currentView='error';
-  root.innerHTML='<div class="screen"><div class="center"><p class="serif-it dim" style="text-align:center;max-width:280px">'+esc(msg)+'</p><button class="btn" id="retryBtn" style="margin-top:20px">Try again</button></div></div>';
+  root.innerHTML='<div class="screen"><div class="center"><h2 class="serif-it">A quiet hiccup.</h2><p class="serif-it dim" style="text-align:center;max-width:280px">'+esc(msg)+'</p><button class="btn" id="retryBtn" style="margin-top:20px">Try again</button></div></div>';
   const b=document.getElementById('retryBtn'); if(b) b.onclick=()=>{ if(retry) retry(); };
 }
 
@@ -429,11 +441,11 @@ function renderAuth(mode){
         <button class="btn ghost" id="apple" style="margin-top:10px"> Continue with Apple</button>
         <div style="display:flex;align-items:center;gap:12px;margin:16px 0 4px"><span style="flex:1;height:1px;background:var(--line)"></span><span class="tiny">or with email</span><span style="flex:1;height:1px;background:var(--line)"></span></div>
         `:''}
-        ${signup?'<input id="name" placeholder="Your name" autocomplete="name" />':''}
-        <input id="email" type="email" placeholder="you@email.com" autocomplete="email" />
-        <input id="pass" type="password" placeholder="Password" autocomplete="${signup?'new-password':'current-password'}" />
+        ${signup?'<input id="name" aria-label="Your name" placeholder="Your name" autocomplete="name" />':''}
+        <input id="email" aria-label="Email" type="email" placeholder="you@email.com" autocomplete="email" />
+        <input id="pass" aria-label="Password" type="password" placeholder="Password" autocomplete="${signup?'new-password':'current-password'}" />
         ${!signup?'<p style="text-align:right;margin-top:8px"><a class="link" id="forgot" style="font-size:13px">Forgot password?</a></p>':''}
-        <div class="err" id="autherr"></div>
+        <div class="err" role="alert" id="autherr"></div>
         <button class="btn" id="authbtn">${signup?'Create account':'Sign in'}</button>
         <p style="margin-top:16px" class="dim">${signup?'Already have an account?':'New here?'}
           <a class="link" id="toggle">${signup?'Sign in':'Create one'}</a></p>
@@ -484,8 +496,8 @@ function renderResetRequest(){
       <h2>We'll send you a link.</h2>
       <p class="dim" style="max-width:300px;font-size:14px">Enter your email and we'll send a link to set a new password.</p>
       <div style="width:100%;max-width:340px">
-        <input id="remail" type="email" placeholder="you@email.com" autocomplete="email" />
-        <div class="err" id="rerr"></div>
+        <input id="remail" aria-label="Email" type="email" placeholder="you@email.com" autocomplete="email" />
+        <div class="err" role="alert" id="rerr"></div>
         <button class="btn" id="sendreset">Send reset link</button>
       </div>
     </div></div>`;
@@ -508,8 +520,8 @@ function renderNewPassword(){
     <div class="glow glow-calm sm"></div>
     <h2>Choose a new password</h2>
     <div style="width:100%;max-width:340px">
-      <input id="np1" type="password" placeholder="New password" autocomplete="new-password" />
-      <div class="err" id="nperr"></div>
+      <input id="np1" aria-label="New password" type="password" placeholder="New password" autocomplete="new-password" />
+      <div class="err" role="alert" id="nperr"></div>
       <button class="btn" id="setpass">Save and continue</button>
     </div></div></div>`;
   document.getElementById('setpass').onclick=async()=>{
@@ -551,8 +563,8 @@ function renderPairing(){
       <div style="width:100%;max-width:340px;margin-top:14px">
         <button class="btn" id="createBtn">Invite my person</button>
         <p class="tiny" style="margin:18px 0 0">or</p>
-        <input id="codein" placeholder="Enter invite code" autocapitalize="characters" />
-        <div class="err" id="pairerr"></div>
+        <input id="codein" aria-label="Invite code" placeholder="Enter invite code" autocapitalize="characters" />
+        <div class="err" role="alert" id="pairerr"></div>
         <button class="btn ghost" id="joinBtn">Join with code</button>
       </div>
     </div>
@@ -698,9 +710,9 @@ function renderReflect(){
         ${MOODS.map(m=>`<button class="chip" data-mood="${m.key}" aria-pressed="false"><span class="dot" style="color:${m.color}"></span>${m.label}</button>`).join('')}
       </div>
       <div style="width:100%;max-width:340px">
-        <input id="word" placeholder="A word, if you like (optional)" maxlength="24" />
-        <input id="shared" placeholder="Anything to share? (optional)" maxlength="120" />
-        <input id="priv" placeholder="Just for you. Optional." maxlength="200" />
+        <input id="word" aria-label="A word for today (optional)" placeholder="A word, if you like (optional)" maxlength="24" />
+        <input id="shared" aria-label="A note to share with your person (optional)" placeholder="Anything to share? (optional)" maxlength="120" />
+        <input id="priv" aria-label="A private note, just for you (optional)" placeholder="Just for you. Optional." maxlength="200" />
         <button class="btn" id="sendBtn" disabled>Send to ${esc(STATE.partner?.display_name||'your person')}</button>
       </div>
     </div>
@@ -1209,7 +1221,7 @@ function confirmDanger(o){
       <button class="btn ghost" id="keep">Keep things as they are</button>
       <button class="btn ghost" id="confirmDo" style="border-color:rgba(255,155,155,.4);color:#ff9b9b">${o.confirmLabel}</button>
     </div>
-    <div class="err" id="dangererr"></div>
+    <div class="err" role="alert" id="dangererr"></div>
   </div></div>`;
   document.getElementById('keep').onclick=renderAccount;
   document.getElementById('confirmDo').onclick=async()=>{
