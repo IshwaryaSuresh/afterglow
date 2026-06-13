@@ -135,6 +135,27 @@
   .cal-dot{ width:7px; height:7px; border-radius:50%; }
   .cal-dot.mine{ outline:1.5px solid rgba(230,245,241,.75); outline-offset:1px; }
   body.bg-paused .glow, body.bg-paused .ring-core, body.bg-paused .ring-spin{ animation-play-state:paused; }
+
+  /* ---- lanterns (forgiving milestones) ---- */
+  .lantern-stage{ position:relative; width:220px; height:230px; margin:0 auto 4px; display:flex; align-items:center; justify-content:center; }
+  .lantern{ width:124px; height:124px; border-radius:50%; filter:blur(6px);
+    background:radial-gradient(circle, #fff 0%, rgba(255,238,200,.95) 18%, #E0A24B 50%, rgba(224,162,75,0) 78%);
+    box-shadow:0 0 72px 14px rgba(224,162,75,.55); animation:lanternBreathe 6s ease-in-out infinite; }
+  .lantern.rise{ animation:lanternRise 1.7s cubic-bezier(.2,.7,.2,1), lanternBreathe 6s ease-in-out 1.7s infinite; }
+  @keyframes lanternRise{ 0%{transform:translateY(90px) scale(.45);opacity:0} 55%{opacity:1} 100%{transform:translateY(0) scale(1);opacity:1} }
+  @keyframes lanternBreathe{ 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-6px) scale(1.04)} }
+  .ember{ position:absolute; bottom:48px; width:5px; height:5px; border-radius:50%; background:#ecbf7a;
+    box-shadow:0 0 8px #E0A24B; opacity:0; animation:emberUp 2.6s ease-out forwards; }
+  @keyframes emberUp{ 0%{opacity:0;transform:translateY(0)} 16%{opacity:.9} 100%{opacity:0;transform:translateY(-160px)} }
+  .lantern-strip{ margin:4px 0 16px; }
+  .lantern-row{ display:flex; gap:10px; overflow-x:auto; padding:10px 2px 4px; scrollbar-width:none; }
+  .lantern-row::-webkit-scrollbar{ display:none; }
+  .lantern-chip{ flex:0 0 auto; display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line);
+    border-radius:999px; padding:8px 14px; background:rgba(224,162,75,.06); color:var(--ink); font-size:13px; cursor:pointer; }
+  .lantern-chip:hover{ border-color:rgba(224,162,75,.5); }
+  .lantern-dot{ width:12px; height:12px; border-radius:50%; flex:0 0 auto;
+    background:radial-gradient(circle, #fff, #E0A24B 60%, transparent); box-shadow:0 0 8px #E0A24B; }
+  @media (prefers-reduced-motion:reduce){ .lantern, .lantern.rise{ animation:none; } .ember{ display:none; } }
   .story-hero{ text-align:center; padding:10px 0 18px; }
   .story-hero .merge{ width:120px; height:64px; margin:0 auto 14px; }
   /* concentric story rings (each ring = a day, newest outermost) — soft luminous halos */
@@ -278,6 +299,69 @@ const MOODS = [
 ];
 const moodLabel = k => (MOODS.find(m=>m.key===k)||{}).label || k;
 
+// ---- LANTERNS: forgiving milestones, computed from real shared history ----
+// Earned by elapsed time together OR total evenings shared — never consecutive, never resettable.
+const LANTERNS = [
+  {key:'evenings_5',   type:'evenings', n:5,   title:'Five evenings',         blurb:'Five times you have shown up for each other.'},
+  {key:'days_30',      type:'days',     n:30,  title:'Your first month',      blurb:'A whole month of evenings, tended together — every one of them, even the quiet days.'},
+  {key:'evenings_25',  type:'evenings', n:25,  title:'Twenty-five evenings',  blurb:'Twenty-five times your lights have met.'},
+  {key:'evenings_50',  type:'evenings', n:50,  title:'Fifty evenings',        blurb:'Fifty glows shared between you.'},
+  {key:'days_90',      type:'days',     n:90,  title:'A season of light',     blurb:'Three months of staying close, in your own gentle way.'},
+  {key:'evenings_100', type:'evenings', n:100, title:'A hundred evenings',    blurb:'A hundred evenings, kept.'},
+  {key:'days_180',     type:'days',     n:180, title:'Half a year, together', blurb:'Six months of quiet presence.'},
+  {key:'days_365',     type:'days',     n:365, title:'A year, together',      blurb:'A whole year of evenings. Look how far the light has travelled.'},
+];
+function addDays(d,n){ const t=new Date(d+'T00:00'); t.setDate(t.getDate()+n);
+  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`; }
+function computeLanterns(datesAsc){
+  if(!datesAsc || !datesAsc.length) return [];
+  const first=datesAsc[0];
+  const daysTogether=Math.floor((new Date(todayLocal()+'T00:00')-new Date(first+'T00:00'))/86400000);
+  const evenings=datesAsc.length;
+  const out=[];
+  for(const L of LANTERNS){
+    if(L.type==='evenings' && evenings>=L.n) out.push({...L, earnedOn:datesAsc[L.n-1]});
+    else if(L.type==='days' && daysTogether>=L.n) out.push({...L, earnedOn:addDays(first, L.n)});
+  }
+  out.sort((a,b)=> a.earnedOn<b.earnedOn?-1:1);
+  return out;
+}
+async function syncLanterns(){
+  if(!STATE.couple) return false;
+  const { data:glows } = await sb.from('glows').select('local_date').eq('couple_id', STATE.couple);
+  const datesAsc=[...new Set((glows||[]).map(g=>g.local_date))].sort();
+  STATE.lanterns=computeLanterns(datesAsc);
+  const ck='afterglow_lanterns_'+STATE.couple;
+  const celebrated=new Set(JSON.parse(localStorage.getItem(ck)||'[]'));
+  const fresh=STATE.lanterns.filter(L=>!celebrated.has(L.key));
+  if(!fresh.length) return false;
+  STATE.lanterns.forEach(L=>celebrated.add(L.key));               // record all (don't re-celebrate history)
+  localStorage.setItem(ck, JSON.stringify([...celebrated]));
+  const crossedToday=fresh.filter(L=>L.earnedOn===todayLocal());  // only bloom for one truly crossed today
+  if(crossedToday.length){ renderLantern(crossedToday[crossedToday.length-1], {celebrate:true}); return true; }
+  return false;
+}
+function renderLantern(L, opts){
+  opts=opts||{}; currentView='lantern';
+  const reduce=reducedMotion();
+  if(opts.celebrate) vib(reduce?20:[0,40,55,40,55,95]);
+  root.innerHTML=`<div class="screen"><div class="center">
+    <div class="lantern-stage" id="lanternStage">
+      <div class="lantern ${(opts.celebrate && !reduce)?'rise':''}"></div>
+    </div>
+    <p class="tiny">${opts.celebrate?'A lantern lit':'A lantern, kept'}</p>
+    <h1 style="font-size:30px;max-width:330px">${esc(L.title)}</h1>
+    <p class="serif-it dim" style="max-width:320px;font-size:16px;line-height:1.55">${esc(L.blurb)}</p>
+    ${L.earnedOn?`<p class="faint" style="font-size:12px;margin-top:6px">${fmtDate(L.earnedOn)}</p>`:''}
+    <button class="btn" id="carry" style="max-width:280px">${opts.celebrate?'Carry it with you':'Back to your story'}</button>
+  </div></div>`;
+  if(opts.celebrate && !reduce){
+    const st=document.getElementById('lanternStage');
+    for(let i=0;i<5;i++){ const e=document.createElement('div'); e.className='ember'; e.style.left=(40+Math.random()*22)+'%'; e.style.animationDelay=(0.3+i*0.22)+'s'; st.appendChild(e); }
+  }
+  document.getElementById('carry').onclick=()=> opts.fromStory?renderStory():(STATE.couple?renderToday():renderAuth());
+}
+
 const root = document.getElementById('root');
 const toastEl = document.getElementById('toast');
 let toastT;
@@ -372,6 +456,7 @@ async function loadContext(){
     } else { STATE.partner = null; }
     subscribeRealtime();
     await renderToday();
+    try{ await syncLanterns(); }catch(e){}   // bloom a lantern if one was crossed today
   }catch(e){
     renderError("We could not reach your glow. Check your connection.", loadContext);
   }
@@ -987,6 +1072,14 @@ async function renderStory(){
       </div>`;
     });
 
+    // lanterns earned (forgiving milestones) — computed from the same shared history
+    STATE.lanterns = computeLanterns([...dates].sort());
+    const lanternStrip = STATE.lanterns.length ? `
+      <div class="lantern-strip">
+        <p class="kicker" style="text-align:center;color:var(--content)">Lanterns</p>
+        <div class="lantern-row">${STATE.lanterns.map((L,i)=>`<button class="lantern-chip" data-li="${i}" aria-label="${esc(L.title)}, ${fmtDate(L.earnedOn)}"><span class="lantern-dot" aria-hidden="true"></span>${esc(L.title)}</button>`).join('')}</div>
+      </div>` : '';
+
     root.innerHTML=`<div class="screen">
       ${closeBar('Our story')}
       <div class="story-hero">
@@ -996,10 +1089,12 @@ async function renderStory(){
         <div class="story-legend" style="margin-top:14px">${legend}</div>
         ${dates.length>1?`<p class="tiny" style="margin-top:10px">tap a ring to revisit a day</p>`:''}
       </div>
+      ${lanternStrip}
       <div class="story-thread">${body}</div>
       <div class="faint serif-it" style="text-align:center;margin:22px 0 12px;font-size:12px">no streaks, no scores</div>
     </div>`;
     document.getElementById('back').onclick=renderMenu;
+    document.querySelectorAll('.lantern-chip').forEach(el=>{ el.onclick=()=>renderLantern(STATE.lanterns[+el.dataset.li], {fromStory:true}); });
     document.querySelectorAll('.story-day').forEach(el=>{ el.onclick=()=>renderDayLetter(el.dataset.date, renderStory); });
     const stage=document.getElementById('ringStage');
     if(stage) stage.onclick=(e)=>{
