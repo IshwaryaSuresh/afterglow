@@ -863,7 +863,26 @@ async function sendGlow(){
 }
 
 let HAPTICS = localStorage.getItem('afterglow_haptics')!=='off';   // gentle by default; user can mute
-function vib(p){ if(!HAPTICS) return; try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+// Native app → Apple Core Haptics / Android via Capacitor Haptics plugin (rich, reliable).
+const CapHaptics = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) ? window.Capacitor.Plugins.Haptics : null;
+// iOS Safari/PWA has NO Vibration API; iOS 17.4+ can fire a haptic via the native <input switch> control.
+let _hapSwitch=null;
+function _iosHapticInit(){
+  if(_hapSwitch || !document.body) return;
+  const l=document.createElement('label');
+  l.setAttribute('aria-hidden','true');
+  l.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
+  const i=document.createElement('input'); i.type='checkbox'; i.setAttribute('switch',''); i.tabIndex=-1;
+  l.appendChild(i); document.body.appendChild(l); _hapSwitch=i;
+}
+function vib(p){
+  if(!HAPTICS) return;
+  try{
+    if(CapHaptics){ const strong=Array.isArray(p)||p>24; CapHaptics.impact({ style: strong?'MEDIUM':'LIGHT' }); return; }
+    if(navigator.vibrate){ navigator.vibrate(p); return; }      // Android web
+    _iosHapticInit(); if(_hapSwitch) _hapSwitch.click();         // iOS web: a light tap (best-effort, in-gesture only)
+  }catch(e){}
+}
 function reducedMotion(){ return window.matchMedia('(prefers-reduced-motion:reduce)').matches; }
 function dayPart(){ const h=new Date().getHours(); return h<5?'late':h<12?'morning':h<17?'afternoon':h<22?'evening':'late'; }
 function greeting(){ const p=dayPart(); return p==='late'?'Hello':'Good '+p; }
