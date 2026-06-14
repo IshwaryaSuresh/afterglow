@@ -473,10 +473,14 @@ function subscribeRealtime(){
   STATE.realtimeChan = sb.channel('couple-'+STATE.couple)
     .on('postgres_changes', { event:'*', schema:'public', table:'glows', filter:'couple_id=eq.'+STATE.couple }, (payload)=>{
       const g = payload.new;
-      if(payload.eventType==='INSERT' && g && g.user_id!==STATE.user.id) notifyPartnerGlow(g);
+      if(payload.eventType==='INSERT' && g && g.user_id!==STATE.user.id){ notifyPartnerGlow(g); vib([0,16,28,16]); }  // their glow arrives — a soft "they're here"
       if(currentView==='today') renderToday(true);
     })
-    .on('postgres_changes', { event:'*', schema:'public', table:'warmth', filter:'couple_id=eq.'+STATE.couple }, ()=>{ if(currentView==='today') renderToday(true); })
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'warmth', filter:'couple_id=eq.'+STATE.couple }, (payload)=>{
+      const w = payload.new;
+      if(w && w.from_user!==STATE.user.id) vib([0,40,55,45]);   // your person sat with your glow — you are being held
+      if(currentView==='today') renderToday(true);
+    })
     .subscribe();
 }
 
@@ -689,7 +693,7 @@ function renderInviteCode(code){
   // poll for partner joining
   const poll = setInterval(async()=>{
     const { data:members } = await sb.from('couple_members').select('user_id').eq('couple_id', STATE.couple);
-    if((members||[]).length>=2){ clearInterval(poll); toast("You are paired!"); loadContext(); }
+    if((members||[]).length>=2){ clearInterval(poll); toast("You are paired!"); vib([0,30,45,30,60]); loadContext(); }
   }, 4000);
 }
 
@@ -702,7 +706,7 @@ async function joinWithCode(){
     const { data, error } = await sb.rpc('join_with_code', { p_code: code });
     if(error) throw error;
     if(!data || data.error){ errEl.textContent="That code did not match. Check it and try again."; setBtn('joinBtn',false,'Join with code'); return; }
-    toast("You are paired!");
+    toast("You are paired!"); vib([0,30,45,30,60]);
     await loadContext();
   }catch(e){ errEl.textContent=e.message; setBtn('joinBtn',false,'Join with code'); }
 }
@@ -806,7 +810,7 @@ function renderReflect(){
   document.getElementById('back').onclick=renderToday;
   document.querySelectorAll('#moodchips .chip').forEach(c=>{
     c.onclick=()=>{
-      draft.mood=c.dataset.mood;
+      draft.mood=c.dataset.mood; vib(7);   // a soft tick as you name the feeling
       document.querySelectorAll('#moodchips .chip').forEach(x=>x.setAttribute('aria-pressed', x===c?'true':'false'));
       const g=document.getElementById('draftGlow'); g.className='glow glow-'+draft.mood; g.style.background=''; g.style.boxShadow='';
       document.getElementById('draftWord').textContent=moodLabel(draft.mood).toLowerCase();
@@ -835,7 +839,8 @@ async function sendGlow(){
   }catch(e){ toast(e.message); setBtn('sendBtn',false,'Send'); }
 }
 
-function vib(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+let HAPTICS = localStorage.getItem('afterglow_haptics')!=='off';   // gentle by default; user can mute
+function vib(p){ if(!HAPTICS) return; try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
 function reducedMotion(){ return window.matchMedia('(prefers-reduced-motion:reduce)').matches; }
 function dayPart(){ const h=new Date().getHours(); return h<5?'late':h<12?'morning':h<17?'afternoon':h<22?'evening':'late'; }
 function greeting(){ const p=dayPart(); return p==='late'?'Hello':'Good '+p; }
@@ -891,7 +896,9 @@ function renderReceive(theirs){
   const note=document.getElementById('warmNote');
   const stage=document.getElementById('stage');
   const HOLD=1600;
-  let raf=null, timer=null, startT=0, done=false, buzz=0;
+  let raf=null, timer=null, startT=0, done=false, pulseI=0;
+  // a heartbeat that quickens as warmth builds: pulse points accelerate toward the release
+  const PULSES=[0.16,0.32,0.46,0.58,0.68,0.77,0.84,0.90,0.95,0.99];
 
   function frame(now){
     if(!startT) startT=now;
@@ -901,8 +908,7 @@ function renderReceive(theirs){
     ring.classList.add('on');
     const deg=p*360;
     ring.style.background='conic-gradient(#5EEAD4 '+deg+'deg, rgba(94,234,212,.10) '+deg+'deg)';
-    if(p>0.5 && buzz<1){ buzz=1; vib(8); }
-    if(p>0.85 && buzz<2){ buzz=2; vib(8); }
+    while(pulseI<PULSES.length && p>=PULSES[pulseI]){ vib(5+Math.round(pulseI*0.9)); pulseI++; }  // soft → fuller
     if(p>=1){ complete(); return; }
     raf=requestAnimationFrame(frame);
   }
@@ -912,7 +918,7 @@ function renderReceive(theirs){
     btn.classList.add('warm-btn-hold');
     btn.textContent='♡ holding';
     note.textContent='keep holding…';
-    startT=0; buzz=0;
+    startT=0; pulseI=0; vib(6);   // a first soft touch as you press
     if(reduce){ note.textContent='holding…'; timer=setTimeout(complete, HOLD); return; }
     glow.style.animation='none';            // take over from the breathe loop
     raf=requestAnimationFrame(frame);
@@ -936,7 +942,7 @@ function renderReceive(theirs){
     if(done) return; done=true;
     if(raf){ cancelAnimationFrame(raf); raf=null; }
     if(timer){ clearTimeout(timer); timer=null; }
-    vib([0,30,40,40]);
+    vib([0,30,50,70,55]);   // warmth lands — a full, settling thump
     ring.classList.remove('on');
     btn.disabled=true; btn.classList.remove('warm-btn-hold'); btn.textContent='warmth sent';
     const title=document.getElementById('warmTitle'); if(title) title.textContent='';
@@ -1228,9 +1234,14 @@ function renderNotif(){
         ${(supported && perm!=='denied' && !on)?`<button class="btn" id="enable">Turn on reminders</button>`:''}
         ${on?`<button class="btn ghost" id="disable">Turn reminders off</button>`:''}
       </div>
-      <p class="faint serif-it" style="font-size:12px;margin-top:10px;max-width:300px">For a reminder even when the app is fully closed, add Afterglow to your Home Screen.</p>
+      <div style="width:100%;max-width:280px;margin-top:22px;border-top:1px solid var(--line);padding-top:18px">
+        <button class="btn ghost" id="haptics">${HAPTICS?'Gentle haptics: on':'Gentle haptics: off'}</button>
+        <p class="faint" style="font-size:12px;margin-top:8px;max-width:300px">Afterglow can give a soft touch when warmth passes or your person appears. Turn it off if you prefer stillness.</p>
+      </div>
+      <p class="faint serif-it" style="font-size:12px;margin-top:14px;max-width:300px">For a reminder even when the app is fully closed, add Afterglow to your Home Screen.</p>
     </div></div>`;
   document.getElementById('back').onclick=renderMenu;
+  document.getElementById('haptics').onclick=()=>{ HAPTICS=!HAPTICS; localStorage.setItem('afterglow_haptics', HAPTICS?'on':'off'); if(HAPTICS) vib([0,18,30,20]); renderNotif(); };
   const en=document.getElementById('enable');
   if(en) en.onclick=async()=>{
     setBtn('enable', true, 'Asking…');
