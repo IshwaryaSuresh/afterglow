@@ -19,7 +19,7 @@
   :root{
     --bg:#061418; --ink:#E6F5F1; --ink-dim:rgba(230,245,241,0.72); --ink-faint:rgba(230,245,241,0.55);
     --accent:#5EEAD4; --line:rgba(230,245,241,0.10);
-    --calm:#2FA8A0; --joyful:#E87B83; --tender:#7B5BD6; --content:#E0A24B; --heavy:#2E3A6E;
+    --happiness:#E8B24A; --sadness:#3E5C8C; --anger:#C95C57; --anxious:#A7A24F; --nostalgic:#B98AA6; --love:#E8788E; --calm:#2FA8A0; --gratitude:#7FB58F;
     --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -32,11 +32,14 @@
   .glow{ width:160px; height:160px; border-radius:50%; filter:blur(10px); animation:breathe 10s ease-in-out infinite; }
   .glow.lg{ width:200px; height:200px; }
   .glow.sm{ width:64px; height:64px; filter:blur(5px); }
-  .glow-heavy{ background:radial-gradient(circle, rgba(210,215,255,.85) 0%, #5566a8 25%, #2E3A6E 50%, rgba(46,58,110,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(46,58,110,.6); }
-  .glow-calm{ background:radial-gradient(circle, rgba(220,200,255,.85) 0%, #5FC9C2 25%, #2FA8A0 50%, rgba(47,168,160,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(47,168,160,.55); }
-  .glow-content{ background:radial-gradient(circle, rgba(255,240,210,.85) 0%, #ecbf7a 25%, #E0A24B 50%, rgba(224,162,75,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(224,162,75,.5); }
-  .glow-joyful{ background:radial-gradient(circle, rgba(255,220,220,.85) 0%, #F0A4AC 25%, #E87B83 50%, rgba(232,123,131,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(232,123,131,.5); }
-  .glow-tender{ background:radial-gradient(circle, rgba(220,200,255,.85) 0%, #9D7BE0 25%, #7B5BD6 50%, rgba(123,91,214,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(123,91,214,.55); }
+  .glow-happiness{ background:radial-gradient(circle, rgba(250,239,218,.85) 0%, #f1d296 25%, #E8B24A 50%, rgba(232,178,74,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(232,178,74,.5); }
+  .glow-sadness{ background:radial-gradient(circle, rgba(216,222,232,.85) 0%, #8fa0bc 25%, #3E5C8C 50%, rgba(62,92,140,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(62,92,140,.5); }
+  .glow-anger{ background:radial-gradient(circle, rgba(244,222,221,.85) 0%, #dfa09d 25%, #C95C57 50%, rgba(201,92,87,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(201,92,87,.5); }
+  .glow-anxious{ background:radial-gradient(circle, rgba(237,236,219,.85) 0%, #cbc998 25%, #A7A24F 50%, rgba(167,162,79,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(167,162,79,.5); }
+  .glow-nostalgic{ background:radial-gradient(circle, rgba(241,231,237,.85) 0%, #d6bbcb 25%, #B98AA6 50%, rgba(185,138,166,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(185,138,166,.5); }
+  .glow-love{ background:radial-gradient(circle, rgba(250,228,232,.85) 0%, #f1b0bd 25%, #E8788E 50%, rgba(232,120,142,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(232,120,142,.5); }
+  .glow-calm{ background:radial-gradient(circle, rgba(213,237,236,.85) 0%, #86ccc7 25%, #2FA8A0 50%, rgba(47,168,160,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(47,168,160,.5); }
+  .glow-gratitude{ background:radial-gradient(circle, rgba(229,240,232,.85) 0%, #b4d4be 25%, #7FB58F 50%, rgba(127,181,143,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(127,181,143,.5); }
   @keyframes breathe{ 0%,100%{transform:scale(1);opacity:.92} 50%{transform:scale(1.05);opacity:1} }
   @media (prefers-reduced-motion:reduce){ .glow{animation:none} }
 
@@ -306,11 +309,14 @@ document.addEventListener('keydown', (e)=>{
 });
 
 const MOODS = [
-  {key:'heavy',   label:'Heavy',   color:'var(--heavy)'},
-  {key:'calm',    label:'Calm',    color:'var(--calm)'},
-  {key:'content', label:'Content', color:'var(--content)'},
-  {key:'joyful',  label:'Joyful',  color:'var(--joyful)'},
-  {key:'tender',  label:'Tender',  color:'var(--tender)'},
+  {key:'happiness', label:'Happiness', color:'var(--happiness)'},
+  {key:'sadness', label:'Sadness', color:'var(--sadness)'},
+  {key:'anger', label:'Anger', color:'var(--anger)'},
+  {key:'anxious', label:'Anxious', color:'var(--anxious)'},
+  {key:'nostalgic', label:'Nostalgic', color:'var(--nostalgic)'},
+  {key:'love', label:'Love', color:'var(--love)'},
+  {key:'calm', label:'Calm', color:'var(--calm)'},
+  {key:'gratitude', label:'Gratitude', color:'var(--gratitude)'},
 ];
 const moodLabel = k => (MOODS.find(m=>m.key===k)||{}).label || k;
 
@@ -409,7 +415,7 @@ async function renderPaywall(opts){
   let price='', pkg=null;
   if(RC){ try{ await rcInit(); const o=await RC.getOfferings(); pkg=o.current && o.current.availablePackages && o.current.availablePackages[0]; price=(pkg&&pkg.product&&pkg.product.priceString)||''; }catch(e){} }
   root.innerHTML=`<div class="screen"><div class="center">
-    <div class="glow glow-tender lg"></div>
+    <div class="glow glow-love lg"></div>
     <h1 style="font-size:27px;max-width:330px">A quiet place, just for two.</h1>
     <p class="dim" style="max-width:320px;font-size:15px">Afterglow is one gentle ritual a day. Try it free for 7 days.${price?(' Then '+esc(price)+'/month.'):''} Cancel anytime.</p>
     <button class="btn" id="startTrial" style="max-width:300px">Start 7-day free trial</button>
@@ -543,7 +549,7 @@ function renderAuth(mode){
   root.innerHTML = `
   <div class="screen">
     <div class="center">
-      <div class="glow glow-tender lg"></div>
+      <div class="glow glow-love lg"></div>
       <h1 style="margin-top:6px">Afterglow</h1>
       <p class="serif-it dim">Presence that remembers.</p>
       <div style="width:100%;max-width:340px;margin-top:22px">
@@ -653,7 +659,7 @@ function renderNewPassword(){
 function renderArrival(next){
   currentView='arrival';
   root.innerHTML=`<div class="screen"><div class="center">
-    <div class="merge" style="width:170px;height:90px"><div class="glow glow-calm sm a"></div><div class="glow glow-content sm b"></div></div>
+    <div class="merge" style="width:170px;height:90px"><div class="glow glow-calm sm a"></div><div class="glow glow-gratitude sm b"></div></div>
     <h1 style="font-size:26px;max-width:320px">One quiet check-in a day, shared with one person.</h1>
     <p class="dim" style="max-width:300px;font-size:15px">Each evening, you share how today felt — as a soft glow, a word, a note. Your person does the same. That's all. No streaks, no scores.</p>
     <button class="btn" id="begin" style="max-width:280px">Begin</button>
@@ -668,7 +674,7 @@ function renderPairing(){
   <div class="screen">
     <div class="topbar"><span class="tiny">Afterglow</span><a class="link" id="signout">Sign out</a></div>
     <div class="center">
-      <div class="merge"><div class="glow glow-calm a"></div><div class="glow glow-joyful b"></div></div>
+      <div class="merge"><div class="glow glow-calm a"></div><div class="glow glow-happiness b"></div></div>
       <h2>Afterglow is for two.</h2>
       <p class="dim" style="max-width:32ch">Invite your person, or enter the code they shared with you.</p>
       <div style="width:100%;max-width:340px;margin-top:14px">
@@ -1075,7 +1081,7 @@ async function renderMeet(){
   const reduce=reducedMotion();
   const them=esc(STATE.partner?.display_name||'Your person');
   // glow colours from today's moods, if shared
-  let myMood='calm', theirMood='tender';
+  let myMood='calm', theirMood='love';
   try{
     const { data:glows } = await sb.from('glows').select('user_id,mood').eq('couple_id', STATE.couple).eq('local_date', todayLocal());
     const mine=(glows||[]).find(g=>g.user_id===STATE.user.id), th=(glows||[]).find(g=>g.user_id!==STATE.user.id);
@@ -1157,7 +1163,7 @@ async function renderStory(){
     const firstDate=dates[dates.length-1];
 
     // ---- concentric rings (newest = outermost), each ring a day, glow = blend of both moods ----
-    const MOODHEX={heavy:'#2E3A6E',calm:'#2FA8A0',content:'#E0A24B',joyful:'#E87B83',tender:'#7B5BD6'};
+    const MOODHEX={happiness:'#E8B24A',sadness:'#3E5C8C',anger:'#C95C57',anxious:'#A7A24F',nostalgic:'#B98AA6',love:'#E8788E',calm:'#2FA8A0',gratitude:'#7FB58F'};
     const h2=h=>{h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16));};
     const mix=(a,b)=>'#'+[0,1,2].map(i=>Math.round((h2(a)[i]+h2(b)[i])/2).toString(16).padStart(2,'0')).join('');
     const dayColor=gs=>{ const mi=gs.find(g=>g.user_id===me), th=gs.find(g=>g.user_id!==me);
@@ -1450,7 +1456,7 @@ function renderAccount(){
 function confirmDanger(o){
   currentView='confirm';
   root.innerHTML=`<div class="screen"><div class="center">
-    <div class="glow glow-heavy sm" style="opacity:.7"></div>
+    <div class="glow glow-sadness sm" style="opacity:.7"></div>
     <h2 style="max-width:300px">${o.title}</h2>
     <p class="dim" style="max-width:300px;font-size:14px">${o.body}</p>
     <div style="width:100%;max-width:300px;display:flex;flex-direction:column;gap:10px;margin-top:12px">

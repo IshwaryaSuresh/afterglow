@@ -18,7 +18,7 @@
   :root{
     --bg:#061418; --bg2:#02060A; --ink:#E6F5F1; --dim:rgba(230,245,241,.72); --faint:rgba(230,245,241,.55);
     --accent:#5EEAD4; --line:rgba(230,245,241,.12);
-    --calm:#2FA8A0; --joyful:#E87B83; --tender:#7B5BD6; --content:#E0A24B; --heavy:#2E3A6E;
+    --happiness:#E8B24A; --sadness:#3E5C8C; --anger:#C95C57; --anxious:#A7A24F; --nostalgic:#B98AA6; --love:#E8788E; --calm:#2FA8A0; --gratitude:#7FB58F;
     --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -31,10 +31,14 @@
 
   /* glow recipe */
   .glow{width:150px;height:150px;border-radius:50%;filter:blur(10px);animation:breathe 10s ease-in-out infinite}
-  .glow-calm{background:radial-gradient(circle, rgba(220,200,255,.85) 0%, #5FC9C2 25%, #2FA8A0 50%, rgba(47,168,160,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(47,168,160,.55)}
-  .glow-content{background:radial-gradient(circle, rgba(255,240,210,.85) 0%, #ecbf7a 25%, #E0A24B 50%, rgba(224,162,75,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(224,162,75,.5)}
-  .glow-joyful{background:radial-gradient(circle, rgba(255,220,220,.85) 0%, #F0A4AC 25%, #E87B83 50%, rgba(232,123,131,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(232,123,131,.5)}
-  .glow-tender{background:radial-gradient(circle, rgba(220,200,255,.85) 0%, #9D7BE0 25%, #7B5BD6 50%, rgba(123,91,214,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(123,91,214,.55)}
+  .glow-happiness{background:radial-gradient(circle, rgba(250,239,218,.85) 0%, #f1d296 25%, #E8B24A 50%, rgba(232,178,74,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(232,178,74,.5)}
+  .glow-sadness{background:radial-gradient(circle, rgba(216,222,232,.85) 0%, #8fa0bc 25%, #3E5C8C 50%, rgba(62,92,140,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(62,92,140,.5)}
+  .glow-anger{background:radial-gradient(circle, rgba(244,222,221,.85) 0%, #dfa09d 25%, #C95C57 50%, rgba(201,92,87,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(201,92,87,.5)}
+  .glow-anxious{background:radial-gradient(circle, rgba(237,236,219,.85) 0%, #cbc998 25%, #A7A24F 50%, rgba(167,162,79,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(167,162,79,.5)}
+  .glow-nostalgic{background:radial-gradient(circle, rgba(241,231,237,.85) 0%, #d6bbcb 25%, #B98AA6 50%, rgba(185,138,166,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(185,138,166,.5)}
+  .glow-love{background:radial-gradient(circle, rgba(250,228,232,.85) 0%, #f1b0bd 25%, #E8788E 50%, rgba(232,120,142,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(232,120,142,.5)}
+  .glow-calm{background:radial-gradient(circle, rgba(213,237,236,.85) 0%, #86ccc7 25%, #2FA8A0 50%, rgba(47,168,160,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(47,168,160,.5)}
+  .glow-gratitude{background:radial-gradient(circle, rgba(229,240,232,.85) 0%, #b4d4be 25%, #7FB58F 50%, rgba(127,181,143,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(127,181,143,.5)}
   @keyframes breathe{0%,100%{transform:scale(1);opacity:.92}50%{transform:scale(1.06);opacity:1}}
   @media (prefers-reduced-motion:reduce){.glow,.ringspin,.ringcore,.hero-merge .glow{animation:none}}
 
@@ -127,8 +131,8 @@
   <div class="heromist" aria-hidden="true"></div>
   <div class="wrap">
     <div class="hero-merge" aria-hidden="true">
-      <div class="glow glow-content a"></div>
-      <div class="glow glow-joyful b"></div>
+      <div class="glow glow-happiness a"></div>
+      <div class="glow glow-love b"></div>
     </div>
     <h1>Presence that<br>remembers.</h1>
     <p class="tag">One quiet check-in a day, shared with one person.</p>
@@ -153,20 +157,20 @@
       <h2>Three breaths, once a day. That's the whole app.</h2>
       <p class="lead">Afterglow is deliberately small. No feed to scroll, no streak to protect, no number going up. Just one gentle exchange between two people who want to stay close.</p>
       <div class="grid" style="grid-template-columns:1fr">
-        <div class="card" style="padding:22px 24px"><h3>1 · Reflect</h3><p>Pick the feeling that held your day — heavy, calm, content, joyful, tender. Add a word or a note if you like.</p></div>
+        <div class="card" style="padding:22px 24px"><h3>1 · Reflect</h3><p>Pick the feeling that held your day — happiness, sadness, anger, anxious, nostalgic, love, calm, or gratitude. Add a word or a note if you like.</p></div>
         <div class="card" style="padding:22px 24px"><h3>2 · Send</h3><p>Your glow travels to your person. They're told gently — never nagged.</p></div>
         <div class="card" style="padding:22px 24px"><h3>3 · Sit with theirs</h3><p>When their glow arrives, hold it for a moment to send warmth back. They'll know you stayed a while.</p></div>
       </div>
     </div>
-    <div class="phone" role="img" aria-label="Afterglow home screen showing your partner's amber glow with the words: Ishwarya felt content today">
+    <div class="phone" role="img" aria-label="Afterglow home screen showing your partner's glow with the words: Ishwarya felt gratitude today">
       <div class="screen">
         <div class="island" aria-hidden="true"></div>
         <div class="status" aria-hidden="true"><span>21:42</span><span class="sig"><i style="height:4px"></i><i style="height:6px"></i><i style="height:8px"></i><i style="height:10px"></i><span class="batt"></span></span></div>
         <p class="t">Tuesday · Evening</p>
         <p class="greet">Good evening, Maya.</p>
         <div class="pcard">
-          <div class="glow glow-content" aria-hidden="true"></div>
-          <p class="line">Ishwarya felt <em>content</em> today.</p>
+          <div class="glow glow-gratitude" aria-hidden="true"></div>
+          <p class="line">Ishwarya felt <em>gratitude</em> today.</p>
           <p class="note">"walked by the water"</p>
         </div>
         <div class="pcard" style="padding:13px">
