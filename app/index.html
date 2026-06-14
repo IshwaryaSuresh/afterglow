@@ -156,6 +156,21 @@
   .lantern-dot{ width:12px; height:12px; border-radius:50%; flex:0 0 auto;
     background:radial-gradient(circle, #fff, #E0A24B 60%, transparent); box-shadow:0 0 8px #E0A24B; }
   @media (prefers-reduced-motion:reduce){ .lantern, .lantern.rise{ animation:none; } .ember{ display:none; } }
+
+  /* ---- meet in the light (live shared breath) ---- */
+  .presence-pill{ display:inline-flex; align-items:center; gap:9px; border:1px solid rgba(94,234,212,.32);
+    background:rgba(94,234,212,.07); color:var(--ink); border-radius:999px; padding:9px 18px; font-size:13.5px; cursor:pointer; }
+  .presence-pill:hover{ border-color:rgba(94,234,212,.6); box-shadow:0 0 24px rgba(94,234,212,.14); }
+  .presence-dot{ width:8px; height:8px; border-radius:50%; background:#5EEAD4; box-shadow:0 0 9px #5EEAD4; animation:pdot 2.4s ease-in-out infinite; }
+  @keyframes pdot{ 0%,100%{opacity:.45} 50%{opacity:1} }
+  .meet-merge{ position:relative; width:300px; height:250px; margin:0 auto; will-change:transform; }
+  .meet-merge .glow{ position:absolute; top:50%; transform:translateY(-50%); mix-blend-mode:screen; transition:opacity .7s ease; }
+  .meet-merge .ma{ left:34px } .meet-merge .mb{ right:34px }
+  .meet-merge.waiting .mb{ opacity:.26 }
+  .meet-guide{ font-family:var(--serif); font-style:italic; color:var(--dim); font-size:19px; letter-spacing:.02em; min-height:26px; }
+  .meet-pulse{ position:absolute; left:50%; top:50%; width:90px; height:90px; border-radius:50%; border:1px solid var(--accent);
+    transform:translate(-50%,-50%) scale(.55); opacity:.7; pointer-events:none; animation:ripple 1.6s ease-out forwards; }
+  @media (prefers-reduced-motion:reduce){ .presence-dot{ animation:none; } .meet-pulse{ display:none; } }
   .story-hero{ text-align:center; padding:10px 0 18px; }
   .story-hero .merge{ width:120px; height:64px; margin:0 auto 14px; }
   /* concentric story rings (each ring = a day, newest outermost) — soft luminous halos */
@@ -424,7 +439,12 @@ async function boot(){
 }
 sb.auth.onAuthStateChange((event, session)=>{
   if(event==='PASSWORD_RECOVERY'){ STATE.user = session && session.user; renderNewPassword(); return; }
-  if(!session){ STATE={user:null,profile:null,couple:null,partner:null,realtimeChan:null}; renderAuth(); }
+  if(!session){
+    if(meetRaf){ cancelAnimationFrame(meetRaf); meetRaf=null; }
+    if(STATE.presenceChan){ try{ sb.removeChannel(STATE.presenceChan); }catch(e){} }
+    STATE={user:null,profile:null,couple:null,partner:null,realtimeChan:null,presenceChan:null};
+    renderAuth();
+  }
 });
 
 async function loadContext(){
@@ -455,6 +475,7 @@ async function loadContext(){
       STATE.partner = pp || {id:partnerId, display_name:'Your person'};
     } else { STATE.partner = null; }
     subscribeRealtime();
+    subscribePresence();                     // live "your person is here" awareness
     await renderToday();
     try{ await syncLanterns(); }catch(e){}   // bloom a lantern if one was crossed today
   }catch(e){
@@ -769,6 +790,7 @@ async function renderToday(silent){
     <div style="display:flex;flex-direction:column;gap:18px;margin-top:26px">
       <div style="text-align:center"><div class="tiny">${new Date().toLocaleDateString(undefined,{weekday:'long'})} · ${dayPart()==='late'?'night':dayPart()}</div>
         <h1 style="font-size:26px;margin-top:6px">${greeting()}, ${esc(myName)}.</h1></div>
+      <div style="text-align:center"><button id="presencePill" class="presence-pill ${STATE.partnerPresent?'':'hidden'}"><span class="presence-dot" aria-hidden="true"></span>${esc(partnerName)} is here · Meet in the light</button></div>
       ${partnerBlock}
       ${both?`<div class="card" id="bothCard" role="button" tabindex="0" aria-label="Open your shared moment" style="cursor:pointer;border-color:rgba(94,234,212,.25);background:rgba(94,234,212,.05)">
         <div class="merge" style="margin:0 auto 8px;width:160px;height:80px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>
@@ -782,6 +804,7 @@ async function renderToday(silent){
   const rb=document.getElementById('reflectBtn'); if(rb) rb.onclick=renderReflect;
   const pc=document.getElementById('partnerCard'); if(pc) pc.onclick=()=>renderReceive(theirs);
   const bc=document.getElementById('bothCard'); if(bc) bc.onclick=()=>renderTogether(mine,theirs);
+  const pp=document.getElementById('presencePill'); if(pp) pp.onclick=()=>renderMeet();
   document.getElementById('menu').onclick=renderMenu;
 }
 
@@ -993,6 +1016,93 @@ function renderTogether(mine,theirs){
     if(t) t.style.opacity='1'; setTimeout(()=>{ if(s) s.style.opacity='.62'; }, 350); };
   setTimeout(reveal, reduce?60:1900);
   if(!reduce) vib(10);
+}
+
+// ---- MEET IN THE LIGHT (live shared breath) ----
+// Presence tells us when your person is here; the breath is driven by the wall clock,
+// so both phones rise and fall together with no server in the loop. Broadcast carries live pulses.
+function subscribePresence(){
+  if(STATE.presenceChan){ sb.removeChannel(STATE.presenceChan); STATE.presenceChan=null; }
+  STATE.partnerPresent=false; STATE.partnerInMoment=false;
+  const me=STATE.user.id;
+  const ch=sb.channel('meet-'+STATE.couple, { config:{ presence:{ key:me } } });
+  const read=()=>{
+    const st=ch.presenceState();
+    const others=Object.keys(st).filter(k=>k!==me);
+    STATE.partnerPresent=others.length>0;
+    STATE.partnerInMoment=others.some(k=>(st[k]||[]).some(m=>m.inMoment));
+    onPresenceChange();
+  };
+  ch.on('presence',{event:'sync'}, read)
+    .on('presence',{event:'join'}, read)
+    .on('presence',{event:'leave'}, read)
+    .on('broadcast',{event:'pulse'}, ()=>{ if(currentView==='meet') feelPulse(); })
+    .subscribe(async(s)=>{ if(s==='SUBSCRIBED'){ try{ await ch.track({ uid:me, inMoment:false }); }catch(e){} } });
+  STATE.presenceChan=ch;
+}
+function setMyMoment(inMoment){ try{ STATE.presenceChan && STATE.presenceChan.track({ uid:STATE.user.id, inMoment }); }catch(e){} }
+function onPresenceChange(){
+  if(currentView==='today'){ const p=document.getElementById('presencePill'); if(p) p.classList.toggle('hidden', !STATE.partnerPresent); }
+  else if(currentView==='meet'){ updateMeet(); }
+}
+function feelPulse(){
+  vib([0,30,40]);
+  const st=document.getElementById('meetStage');
+  if(st && !reducedMotion()){ const r=document.createElement('div'); r.className='meet-pulse'; st.appendChild(r); setTimeout(()=>r.remove(),1600); }
+}
+let meetRaf=null;
+async function renderMeet(){
+  currentView='meet';
+  const reduce=reducedMotion();
+  const them=esc(STATE.partner?.display_name||'Your person');
+  // glow colours from today's moods, if shared
+  let myMood='calm', theirMood='tender';
+  try{
+    const { data:glows } = await sb.from('glows').select('user_id,mood').eq('couple_id', STATE.couple).eq('local_date', todayLocal());
+    const mine=(glows||[]).find(g=>g.user_id===STATE.user.id), th=(glows||[]).find(g=>g.user_id!==STATE.user.id);
+    if(mine) myMood=mine.mood; if(th) theirMood=th.mood;
+  }catch(e){}
+  root.innerHTML=`<div class="screen">
+    ${closeBar('Together, now')}
+    <div class="center">
+      <div class="meet-merge waiting" id="meetStage" role="img" aria-label="Two glows breathing together">
+        <div class="glow glow-${theirMood} mb"></div>
+        <div class="glow glow-${myMood} ma"></div>
+      </div>
+      <p class="meet-guide" id="meetGuide" aria-live="polite">breathe in</p>
+      <p class="dim" id="meetStatus" style="max-width:300px;font-size:14px"></p>
+      <button class="btn ghost" id="sendPulse" style="max-width:260px">♡ Send a pulse</button>
+    </div></div>`;
+  document.getElementById('back').onclick=leaveMeet;
+  document.getElementById('sendPulse').onclick=()=>{ try{ STATE.presenceChan && STATE.presenceChan.send({ type:'broadcast', event:'pulse', payload:{} }); }catch(e){} vib(14); };
+  setMyMoment(true);
+  updateMeet();
+  const CYCLE=9000, stage=document.getElementById('meetStage'), guide=document.getElementById('meetGuide');
+  let lastCycle=-1;
+  function frame(){
+    const now=Date.now();
+    const frac=(now%CYCLE)/CYCLE;
+    const s=(1-Math.cos(frac*2*Math.PI))/2;            // 0 → 1 → 0, eased
+    if(!reduce && stage) stage.style.transform='scale('+(0.84+0.30*s)+')';
+    if(guide){ const t=frac<0.5?'breathe in':'let go'; if(guide.textContent!==t) guide.textContent=t; }
+    const cyc=Math.floor(now/CYCLE);
+    if(frac>0.47 && frac<0.53 && cyc!==lastCycle){ lastCycle=cyc; if(STATE.partnerInMoment) vib(9); }  // shared pulse at each inhale
+    meetRaf=requestAnimationFrame(frame);
+  }
+  meetRaf=requestAnimationFrame(frame);
+}
+function updateMeet(){
+  const stage=document.getElementById('meetStage'), status=document.getElementById('meetStatus');
+  if(!stage) return;
+  const them=(STATE.partner&&STATE.partner.display_name)||'Your person';
+  if(STATE.partnerInMoment){ stage.classList.remove('waiting'); if(status) status.textContent='You’re breathing together. Stay a while.'; }
+  else if(STATE.partnerPresent){ stage.classList.add('waiting'); if(status) status.textContent=them+' is here. Breathe — they may sit with you.'; }
+  else { stage.classList.add('waiting'); if(status) status.textContent='You’re here. '+them+' will feel it when they arrive.'; }
+}
+function leaveMeet(){
+  if(meetRaf){ cancelAnimationFrame(meetRaf); meetRaf=null; }
+  setMyMoment(false);
+  renderToday();
 }
 
 // ---- OUR STORY (timeline) ----
@@ -1341,6 +1451,7 @@ async function doUnpair(){
   const { error } = await sb.rpc('unpair');
   if(error) throw error;
   if(STATE.realtimeChan){ sb.removeChannel(STATE.realtimeChan); STATE.realtimeChan=null; }
+  if(STATE.presenceChan){ sb.removeChannel(STATE.presenceChan); STATE.presenceChan=null; }
   STATE.couple=null; STATE.partner=null;
   toast('Unpaired. Be gentle with yourself.');
   renderPairing();
