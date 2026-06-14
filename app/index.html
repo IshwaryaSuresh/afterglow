@@ -1180,11 +1180,10 @@ async function renderStory(){
       ringR.push({date:d, r:dia/2});
       return `<div class="ring" style="width:${dia}px;height:${dia}px;color:${dayColor(byDate[d])}"></div>`;
     }).join('');
-    const coreCol=dayColor(latest);
     const ringHtml=`<div class="ring-stage" id="ringStage" role="img" aria-label="A glowing ring for each of your ${dates.length} ${dates.length===1?'evening':'evenings'} together. Use the list below to open a day.">
-        <div class="ring-aura" style="background:radial-gradient(circle, ${coreCol} 0%, rgba(6,20,24,0) 65%)"></div>
+        <div class="ring-aura" style="background:radial-gradient(circle, rgba(94,234,212,.09) 0%, rgba(6,20,24,0) 62%)"></div>
         <div class="ring-spin">${ghosts}${rings}</div>
-        <div class="ring-core" style="background:radial-gradient(circle, #ffffff 0%, rgba(255,255,255,.85) 16%, ${coreCol} 46%, rgba(6,20,24,0) 74%); box-shadow:0 0 56px 10px ${coreCol}88"></div>
+        <div class="ring-core" style="background:radial-gradient(circle, #ffffff 0%, rgba(231,245,241,.9) 20%, rgba(94,234,212,.30) 54%, rgba(6,20,24,0) 78%); box-shadow:0 0 54px 10px rgba(94,234,212,.32)"></div>
       </div>`;
     const legend=MOODS.map(m=>`<span><i style="background:${m.color};box-shadow:0 0 6px ${m.color}"></i>${m.label.toLowerCase()}</span>`).join('');
 
