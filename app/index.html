@@ -19,7 +19,7 @@
   :root{
     --bg:#061418; --ink:#E6F5F1; --ink-dim:rgba(230,245,241,0.72); --ink-faint:rgba(230,245,241,0.55);
     --accent:#5EEAD4; --line:rgba(230,245,241,0.10);
-    --happiness:#E8B24A; --sadness:#3E5C8C; --anger:#C95C57; --anxious:#A7A24F; --nostalgic:#B98AA6; --love:#E8788E; --calm:#2FA8A0; --gratitude:#7FB58F;
+    --happiness:#E8B24A; --sadness:#3E5C8C; --anger:#C0413A; --anxious:#A7A24F; --nostalgic:#B98AA6; --love:#EA6FA4; --calm:#2FA8A0; --gratitude:#7FB58F;
     --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -34,10 +34,10 @@
   .glow.sm{ width:64px; height:64px; filter:blur(5px); }
   .glow-happiness{ background:radial-gradient(circle, rgba(250,239,218,.85) 0%, #f1d296 25%, #E8B24A 50%, rgba(232,178,74,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(232,178,74,.5); }
   .glow-sadness{ background:radial-gradient(circle, rgba(216,222,232,.85) 0%, #8fa0bc 25%, #3E5C8C 50%, rgba(62,92,140,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(62,92,140,.5); }
-  .glow-anger{ background:radial-gradient(circle, rgba(244,222,221,.85) 0%, #dfa09d 25%, #C95C57 50%, rgba(201,92,87,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(201,92,87,.5); }
+  .glow-anger{ background:radial-gradient(circle, rgba(242,217,215,.85) 0%, #da908c 25%, #C0413A 50%, rgba(192,65,58,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(192,65,58,.5) }
   .glow-anxious{ background:radial-gradient(circle, rgba(237,236,219,.85) 0%, #cbc998 25%, #A7A24F 50%, rgba(167,162,79,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(167,162,79,.5); }
   .glow-nostalgic{ background:radial-gradient(circle, rgba(241,231,237,.85) 0%, #d6bbcb 25%, #B98AA6 50%, rgba(185,138,166,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(185,138,166,.5); }
-  .glow-love{ background:radial-gradient(circle, rgba(250,228,232,.85) 0%, #f1b0bd 25%, #E8788E 50%, rgba(232,120,142,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(232,120,142,.5); }
+  .glow-love{ background:radial-gradient(circle, rgba(250,226,236,.85) 0%, #f2abca 25%, #EA6FA4 50%, rgba(234,111,164,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(234,111,164,.5) }
   .glow-calm{ background:radial-gradient(circle, rgba(213,237,236,.85) 0%, #86ccc7 25%, #2FA8A0 50%, rgba(47,168,160,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(47,168,160,.5); }
   .glow-gratitude{ background:radial-gradient(circle, rgba(229,240,232,.85) 0%, #b4d4be 25%, #7FB58F 50%, rgba(127,181,143,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(127,181,143,.5); }
   @keyframes breathe{ 0%,100%{transform:scale(1);opacity:.92} 50%{transform:scale(1.05);opacity:1} }
@@ -1163,7 +1163,7 @@ async function renderStory(){
     const firstDate=dates[dates.length-1];
 
     // ---- concentric rings (newest = outermost), each ring a day, glow = blend of both moods ----
-    const MOODHEX={happiness:'#E8B24A',sadness:'#3E5C8C',anger:'#C95C57',anxious:'#A7A24F',nostalgic:'#B98AA6',love:'#E8788E',calm:'#2FA8A0',gratitude:'#7FB58F'};
+    const MOODHEX={happiness:'#E8B24A',sadness:'#3E5C8C',anger:'#C0413A',anxious:'#A7A24F',nostalgic:'#B98AA6',love:'#EA6FA4',calm:'#2FA8A0',gratitude:'#7FB58F'};
     const h2=h=>{h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16));};
     const mix=(a,b)=>'#'+[0,1,2].map(i=>Math.round((h2(a)[i]+h2(b)[i])/2).toString(16).padStart(2,'0')).join('');
     const dayColor=gs=>{ const mi=gs.find(g=>g.user_id===me), th=gs.find(g=>g.user_id!==me);
