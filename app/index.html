@@ -828,11 +828,11 @@ function renderReflect(){
       <div class="chips" id="moodchips">
         ${MOODS.map(m=>`<button class="chip" data-mood="${m.key}" aria-pressed="false"><span class="dot" style="color:${m.color}"></span>${m.label}</button>`).join('')}
       </div>
-      <div style="width:100%;max-width:340px">
-        <input id="word" aria-label="A word for today (optional)" placeholder="A word, if you like (optional)" maxlength="24" />
-        <input id="shared" aria-label="A note to share with your person (optional)" placeholder="Anything to share? (optional)" maxlength="120" />
-        <input id="priv" aria-label="A private note, just for you (optional)" placeholder="Just for you. Optional." maxlength="200" />
-        <button class="btn" id="sendBtn" disabled>Send to ${esc(STATE.partner?.display_name||'your person')}</button>
+      <div id="noteArea" class="hidden" style="width:100%;max-width:340px;margin-top:6px">
+        <input id="shared" aria-label="A note to share with your person (optional)" placeholder="Say more, if you like (optional)" maxlength="200" />
+        <button class="link" id="addPriv" style="font-size:13px;margin-top:10px">＋ a private note, just for you</button>
+        <input id="priv" class="hidden" aria-label="A private note, just for you (optional)" placeholder="Just for you — never shared" maxlength="200" />
+        <button class="btn" id="sendBtn" style="margin-top:14px">Send to ${esc(STATE.partner?.display_name||'your person')}</button>
       </div>
     </div>
   </div>`;
@@ -843,9 +843,11 @@ function renderReflect(){
       document.querySelectorAll('#moodchips .chip').forEach(x=>x.setAttribute('aria-pressed', x===c?'true':'false'));
       const g=document.getElementById('draftGlow'); g.className='glow glow-'+draft.mood; g.style.background=''; g.style.boxShadow='';
       document.getElementById('draftWord').textContent=moodLabel(draft.mood).toLowerCase();
-      document.getElementById('sendBtn').disabled=false;
+      document.getElementById('noteArea').classList.remove('hidden');   // notes appear once a feeling is chosen
     };
   });
+  const ap=document.getElementById('addPriv');
+  ap.onclick=()=>{ const pv=document.getElementById('priv'); pv.classList.remove('hidden'); ap.classList.add('hidden'); pv.focus(); };
   document.getElementById('sendBtn').onclick=sendGlow;
 }
 
