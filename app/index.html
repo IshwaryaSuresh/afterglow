@@ -57,6 +57,13 @@
     background:rgba(2,6,10,.5); color:var(--ink); font-family:var(--sans); font-size:15px; margin-top:10px;
   }
   input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  textarea.bignote{ width:100%; min-height:108px; margin-top:10px; padding:14px 16px; border-radius:16px; border:1px solid var(--line);
+    background:rgba(2,6,10,.5); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.5; resize:none; }
+  textarea.bignote:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  textarea.bignote.priv{ border-color:rgba(94,234,212,.45); background:rgba(94,234,212,.04); }
+  .privtoggle{ display:inline-flex; align-items:center; gap:7px; margin-top:12px; padding:8px 14px; border-radius:999px; min-height:40px;
+    border:1px solid var(--line); background:transparent; color:var(--ink-dim); font-size:13px; cursor:pointer; font-family:var(--sans); }
+  .privtoggle[aria-pressed="true"]{ border-color:rgba(94,234,212,.6); color:var(--ink); background:rgba(94,234,212,.08); }
   .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:52px; padding:0 24px; border-radius:999px;
     background:rgba(94,234,212,.12); border:1px solid rgba(94,234,212,.5); color:var(--ink); font-family:var(--sans); font-size:15px;
     cursor:pointer; box-shadow:0 0 30px rgba(94,234,212,.14); margin-top:14px; transition:box-shadow .2s; }
@@ -829,9 +836,8 @@ function renderReflect(){
         ${MOODS.map(m=>`<button class="chip" data-mood="${m.key}" aria-pressed="false"><span class="dot" style="color:${m.color}"></span>${m.label}</button>`).join('')}
       </div>
       <div id="noteArea" class="hidden" style="width:100%;max-width:340px;margin-top:6px">
-        <input id="shared" aria-label="A note to share with your person (optional)" placeholder="Say more, if you like (optional)" maxlength="200" />
-        <button class="link" id="addPriv" style="font-size:13px;margin-top:10px">＋ a private note, just for you</button>
-        <input id="priv" class="hidden" aria-label="A private note, just for you (optional)" placeholder="Just for you — never shared" maxlength="200" />
+        <textarea id="note" class="bignote" aria-label="A note about your day (optional)" placeholder="Say more, if you like (optional)" maxlength="240"></textarea>
+        <div style="text-align:left"><button class="privtoggle" id="privToggle" aria-pressed="false">🔒 Keep this just for me</button></div>
         <button class="btn" id="sendBtn" style="margin-top:14px">Send to ${esc(STATE.partner?.display_name||'your person')}</button>
       </div>
     </div>
@@ -846,13 +852,20 @@ function renderReflect(){
       document.getElementById('noteArea').classList.remove('hidden');   // notes appear once a feeling is chosen
     };
   });
-  const ap=document.getElementById('addPriv');
-  ap.onclick=()=>{ const pv=document.getElementById('priv'); pv.classList.remove('hidden'); ap.classList.add('hidden'); pv.focus(); };
+  const pt=document.getElementById('privToggle'), note=document.getElementById('note');
+  pt.onclick=()=>{
+    const on=pt.getAttribute('aria-pressed')!=='true'; pt.setAttribute('aria-pressed', on?'true':'false'); vib(6);
+    note.classList.toggle('priv', on);
+    pt.textContent = on ? '🔒 Just for me — your person won’t see this' : '🔒 Keep this just for me';
+    note.setAttribute('placeholder', on ? 'Just for you — never shared' : 'Say more, if you like (optional)');
+  };
   document.getElementById('sendBtn').onclick=sendGlow;
 }
 
 async function sendGlow(){
-  draft.word=val('word'); draft.shared=val('shared'); draft.priv=val('priv');
+  const isPriv=document.getElementById('privToggle')?.getAttribute('aria-pressed')==='true';
+  const text=val('note');
+  draft.word=''; draft.shared=isPriv?'':text; draft.priv=isPriv?text:'';
   if(!draft.mood) return;
   setBtn('sendBtn', true, 'Sending…');
   try{
