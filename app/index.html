@@ -183,7 +183,7 @@
   @media (prefers-reduced-motion:reduce){ .presence-dot{ animation:none; } .meet-pulse{ display:none; } }
   .story-hero{ text-align:center; padding:10px 0 18px; }
   .story-hero .merge{ width:120px; height:64px; margin:0 auto 14px; }
-  /* concentric story rings (each ring = a day, newest outermost) — soft luminous halos */
+  /* concentric story rings (each ring = a day, newest outermost): soft luminous halos */
   .ring-stage{ position:relative; width:320px; height:320px; margin:6px auto 16px; cursor:pointer; }
   .ring-spin{ position:absolute; inset:0; animation:slowspin 90s linear infinite; }
   @keyframes slowspin{ to{ transform:rotate(360deg); } }
@@ -328,10 +328,10 @@ const MOODS = [
 const moodLabel = k => (MOODS.find(m=>m.key===k)||{}).label || k;
 
 // ---- LANTERNS: forgiving milestones, computed from real shared history ----
-// Earned by elapsed time together OR total evenings shared — never consecutive, never resettable.
+// Earned by elapsed time together OR total evenings shared, never consecutive, never resettable.
 const LANTERNS = [
   {key:'evenings_5',   type:'evenings', n:5,   title:'Five evenings',         blurb:'Five times you have shown up for each other.'},
-  {key:'days_30',      type:'days',     n:30,  title:'Your first month',      blurb:'A whole month of evenings, tended together — every one of them, even the quiet days.'},
+  {key:'days_30',      type:'days',     n:30,  title:'Your first month',      blurb:'A whole month of evenings, tended together, every one of them, even the quiet days.'},
   {key:'evenings_25',  type:'evenings', n:25,  title:'Twenty-five evenings',  blurb:'Twenty-five times your lights have met.'},
   {key:'evenings_50',  type:'evenings', n:50,  title:'Fifty evenings',        blurb:'Fifty glows shared between you.'},
   {key:'days_90',      type:'days',     n:90,  title:'A season of light',     blurb:'Three months of staying close, in your own gentle way.'},
@@ -401,7 +401,7 @@ function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>
 let STATE = { user:null, profile:null, couple:null, partner:null, realtimeChan:null };
 
 // ============ AUTH BOOT ============
-// ============ NATIVE BILLING (RevenueCat) — no-op on web ============
+// ============ NATIVE BILLING (RevenueCat): no-op on web ============
 const RC = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins)
   ? (window.Capacitor.Plugins.Purchases || null) : null;
 const RC_KEYS = { ios:"appl_REPLACE_ME", android:"goog_REPLACE_ME" };  // paste your RevenueCat public keys
@@ -434,7 +434,7 @@ async function renderPaywall(opts){
       <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
   </div></div>`;
   document.getElementById('startTrial').onclick=async()=>{
-    if(!RC || !pkg){ toast(opts.preview?'Preview only — connect RevenueCat to enable.':'Store unavailable. Try again.'); return; }
+    if(!RC || !pkg){ toast(opts.preview?'Preview only. Connect RevenueCat to enable.':'Store unavailable. Try again.'); return; }
     setBtn('startTrial', true, 'Opening…');
     try{ await RC.purchasePackage({ aPackage:pkg }); if(await hasPro()){ boot(); return; } }catch(e){}
     setBtn('startTrial', false, 'Start 7-day free trial');
@@ -466,7 +466,7 @@ async function loadContext(){
     // profile
     let { data:prof } = await sb.from('profiles').select('*').eq('id', STATE.user.id).single();
     STATE.profile = prof;
-    // OAuth users arrive without a chosen name — adopt the one Google/Apple provided
+    // OAuth users arrive without a chosen name, so adopt the one Google/Apple provided
     if(prof && prof.display_name==='Someone'){
       const m=STATE.user.user_metadata||{};
       const nm=(m.display_name||m.full_name||m.name||'').trim().split(' ')[0];
@@ -507,12 +507,12 @@ function subscribeRealtime(){
   STATE.realtimeChan = sb.channel('couple-'+STATE.couple)
     .on('postgres_changes', { event:'*', schema:'public', table:'glows', filter:'couple_id=eq.'+STATE.couple }, (payload)=>{
       const g = payload.new;
-      if(payload.eventType==='INSERT' && g && g.user_id!==STATE.user.id){ notifyPartnerGlow(g); vib([0,16,28,16]); }  // their glow arrives — a soft "they're here"
+      if(payload.eventType==='INSERT' && g && g.user_id!==STATE.user.id){ notifyPartnerGlow(g); vib([0,16,28,16]); }  // their glow arrives, a soft "they're here"
       if(currentView==='today') renderToday(true);
     })
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'warmth', filter:'couple_id=eq.'+STATE.couple }, (payload)=>{
       const w = payload.new;
-      if(w && w.from_user!==STATE.user.id) vib([0,40,55,45]);   // your person sat with your glow — you are being held
+      if(w && w.from_user!==STATE.user.id) vib([0,40,55,45]);   // your person sat with your glow, you are being held
       if(currentView==='today') renderToday(true);
     })
     .subscribe();
@@ -552,7 +552,7 @@ function legalFooter(){
 function renderAuth(mode){
   currentView='auth'; mode = mode || 'in';
   const signup = mode==='up';
-  const social = !RC; // Google blocks OAuth in plain native webviews — social is web/PWA only for now
+  const social = !RC; // Google blocks OAuth in plain native webviews, so social is web/PWA only for now
   root.innerHTML = `
   <div class="screen">
     <div class="center">
@@ -668,7 +668,7 @@ function renderArrival(next){
   root.innerHTML=`<div class="screen"><div class="center">
     <div class="merge" style="width:170px;height:90px"><div class="glow glow-calm sm a"></div><div class="glow glow-gratitude sm b"></div></div>
     <h1 style="font-size:26px;max-width:320px">One quiet check-in a day, shared with one person.</h1>
-    <p class="dim" style="max-width:300px;font-size:15px">Each evening, you share how today felt — as a soft glow, a word, a note. Your person does the same. That's all. No streaks, no scores.</p>
+    <p class="dim" style="max-width:300px;font-size:15px">Each evening, you share how today felt: a soft glow, a word, a note. Your person does the same. That's all. No streaks, no scores.</p>
     <button class="btn" id="begin" style="max-width:280px">Begin</button>
   </div></div>`;
   document.getElementById('begin').onclick=()=>{ localStorage.setItem('afterglow_arrived','1'); next(); };
@@ -856,8 +856,8 @@ function renderReflect(){
   pt.onclick=()=>{
     const on=pt.getAttribute('aria-pressed')!=='true'; pt.setAttribute('aria-pressed', on?'true':'false'); vib(6);
     note.classList.toggle('priv', on);
-    pt.textContent = on ? '🔒 Just for me — your person won’t see this' : '🔒 Keep this just for me';
-    note.setAttribute('placeholder', on ? 'Just for you — never shared' : 'Say more, if you like (optional)');
+    pt.textContent = on ? '🔒 Just for me. Your person won’t see this' : '🔒 Keep this just for me';
+    note.setAttribute('placeholder', on ? 'Just for you, never shared' : 'Say more, if you like (optional)');
   };
   document.getElementById('sendBtn').onclick=sendGlow;
 }
@@ -1005,7 +1005,7 @@ function renderReceive(theirs){
     if(done) return; done=true;
     if(raf){ cancelAnimationFrame(raf); raf=null; }
     if(timer){ clearTimeout(timer); timer=null; }
-    vib([0,30,50,70,55]);   // warmth lands — a full, settling thump
+    vib([0,30,50,70,55]);   // warmth lands, a full, settling thump
     ring.classList.remove('on');
     btn.disabled=true; btn.classList.remove('warm-btn-hold'); btn.textContent='warmth sent';
     const title=document.getElementById('warmTitle'); if(title) title.textContent='';
@@ -1136,7 +1136,7 @@ function updateMeet(){
   if(!stage) return;
   const them=(STATE.partner&&STATE.partner.display_name)||'Your person';
   if(STATE.partnerInMoment){ stage.classList.remove('waiting'); if(status) status.textContent='You’re breathing together. Stay a while.'; }
-  else if(STATE.partnerPresent){ stage.classList.add('waiting'); if(status) status.textContent=them+' is here. Breathe — they may sit with you.'; }
+  else if(STATE.partnerPresent){ stage.classList.add('waiting'); if(status) status.textContent=them+' is here. Breathe. They may sit with you.'; }
   else { stage.classList.add('waiting'); if(status) status.textContent='You’re here. '+them+' will feel it when they arrive.'; }
 }
 function leaveMeet(){
@@ -1227,7 +1227,7 @@ async function renderStory(){
       </div>`;
     });
 
-    // lanterns earned (forgiving milestones) — computed from the same shared history
+    // lanterns earned (forgiving milestones): computed from the same shared history
     STATE.lanterns = computeLanterns([...dates].sort());
     const lanternStrip = STATE.lanterns.length ? `
       <div class="lantern-strip">
@@ -1386,11 +1386,31 @@ function renderNotif(){
       <div style="width:100%;max-width:280px;margin-top:22px;border-top:1px solid var(--line);padding-top:18px">
         <button class="btn ghost" id="haptics">${HAPTICS?'Gentle haptics: on':'Gentle haptics: off'}</button>
         <p class="faint" style="font-size:12px;margin-top:8px;max-width:300px">Afterglow can give a soft touch when warmth passes or your person appears. Turn it off if you prefer stillness.</p>
+        ${HAPTICS?`<div id="hapDemo" style="margin-top:16px">
+          <p class="faint serif-it" style="font-size:12px;margin-bottom:10px">Try a feeling. Each one is what you would feel in that moment.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+            <button class="chip hap" data-h="tick">a soft tick</button>
+            <button class="chip hap" data-h="send">send</button>
+            <button class="chip hap" data-h="land">warmth lands</button>
+            <button class="chip hap" data-h="arrives">they arrive</button>
+            <button class="chip hap" data-h="paired">paired</button>
+            <button class="chip hap" data-h="breath">shared breath</button>
+            <button class="chip hap" data-h="celebrate">a milestone</button>
+          </div>
+          <p class="faint" style="font-size:11px;margin-top:10px;max-width:300px">On iPhone in the browser, tap firmly. The full vocabulary plays through the native app.</p>
+        </div>`:''}
       </div>
       <p class="faint serif-it" style="font-size:12px;margin-top:14px;max-width:300px">For a reminder even when the app is fully closed, add Afterglow to your Home Screen.</p>
     </div></div>`;
   document.getElementById('back').onclick=renderMenu;
   document.getElementById('haptics').onclick=()=>{ HAPTICS=!HAPTICS; localStorage.setItem('afterglow_haptics', HAPTICS?'on':'off'); if(HAPTICS) vib([0,18,30,20]); renderNotif(); };
+  const HAP_DEMOS={
+    tick:7, send:12, land:[0,30,50,70,55], arrives:[0,16,28,16],
+    paired:[0,30,45,30,60], breath:9, celebrate:[0,40,55,40,55,95]
+  };
+  document.querySelectorAll('#hapDemo .hap').forEach(b=>{
+    b.onclick=()=>{ vib(HAP_DEMOS[b.dataset.h]); b.animate([{transform:'scale(1)'},{transform:'scale(.96)'},{transform:'scale(1)'}],{duration:240}); };
+  });
   const en=document.getElementById('enable');
   if(en) en.onclick=async()=>{
     setBtn('enable', true, 'Asking…');
@@ -1443,7 +1463,7 @@ function renderAccount(){
     ${closeBar('Account & privacy')}
     <div class="center">
       <h2 class="serif-it">Yours to keep, yours to end.</h2>
-      <p class="dim" style="max-width:310px;font-size:14px">Afterglow holds something tender. You are always free to step away from it — gently or completely.</p>
+      <p class="dim" style="max-width:310px;font-size:14px">Afterglow holds something tender. You are always free to step away from it, gently or completely.</p>
       <div style="width:100%;max-width:300px;display:flex;flex-direction:column;gap:10px;margin-top:14px">
         ${STATE.couple?`<button class="btn ghost" id="unpair">Unpair from ${them}</button>`:''}
         <button class="btn ghost" id="delacct" style="border-color:rgba(255,155,155,.35);color:#ff9b9b">Delete my account</button>
@@ -1462,7 +1482,7 @@ function renderAccount(){
   });
   document.getElementById('delacct').onclick=()=>confirmDanger({
     title:'Delete your account?',
-    body:'This deletes your account, your glows, your private notes, and your shared story with '+them+' — for both of you. It cannot be undone.',
+    body:'This deletes your account, your glows, your private notes, and your shared story with '+them+', for both of you. It cannot be undone.',
     confirmLabel:'Delete everything',
     onConfirm: doDeleteAccount
   });
