@@ -412,6 +412,46 @@ const RC = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capa
   ? (window.Capacitor.Plugins.Purchases || null) : null;
 const RC_KEYS = { ios:"appl_REPLACE_ME", android:"goog_REPLACE_ME" };  // paste your RevenueCat public keys
 const BILLING_ENABLED = false;   // flip to true once RevenueCat keys + store products (7-day trial) are live
+
+// ============ NATIVE SOCIAL SIGN-IN (Apple + Google) ============
+// Paste these after creating OAuth clients in Google Cloud Console + a Services ID in Apple Dev portal.
+// Web/PWA falls back to Supabase signInWithOAuth (Supabase Dashboard manages those client IDs separately).
+const SOCIAL_KEYS = {
+  googleIOS:      "REPLACE_ME.apps.googleusercontent.com",  // iOS OAuth client ID from Google Cloud
+  googleAndroid:  "REPLACE_ME.apps.googleusercontent.com",  // Android OAuth client ID (uses keystore SHA-1)
+  googleWebForServer: "REPLACE_ME.apps.googleusercontent.com", // Web client ID, passed as serverClientId for Android offline access
+  appleServicesId:"tech.madeforhumans.afterglow.signin",    // Services ID registered in Apple Dev portal
+  appleRedirect:  "https://daharpiwvdewulbsdxge.supabase.co/auth/v1/callback"  // Supabase's Apple callback
+};
+let _socialReady=false;
+async function ensureSocialLoginReady(){
+  if(_socialReady) return true;
+  const SL = window.Capacitor?.Plugins?.SocialLogin;
+  if(!SL) throw new Error('SocialLogin plugin not available');
+  const platform = window.Capacitor.getPlatform();
+  await SL.initialize({
+    google: {
+      iOSClientId:     SOCIAL_KEYS.googleIOS,
+      androidClientId: SOCIAL_KEYS.googleAndroid,
+      webClientId:     SOCIAL_KEYS.googleWebForServer,
+      mode: 'online'
+    },
+    apple: {
+      clientId:    SOCIAL_KEYS.appleServicesId,
+      redirectUrl: SOCIAL_KEYS.appleRedirect
+    }
+  });
+  _socialReady=true;
+  return true;
+}
+function _b64url(bytes){
+  let s=''; for(const b of bytes) s+=String.fromCharCode(b);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function _sha256Hex(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 let rcReady = false;
 async function rcInit(){
   if(!RC || rcReady) return rcReady;
@@ -558,7 +598,7 @@ function legalFooter(){
 function renderAuth(mode){
   currentView='auth'; mode = mode || 'in';
   const signup = mode==='up';
-  const social = !RC; // Google blocks OAuth in plain native webviews, so social is web/PWA only for now
+  const social = true; // Native iOS/Android use the SocialLogin plugin; web uses Supabase OAuth redirect.
   root.innerHTML = `
   <div class="screen">
     <div class="center">
@@ -587,10 +627,37 @@ function renderAuth(mode){
   const fg=document.getElementById('forgot'); if(fg) fg.onclick=()=>renderResetRequest();
   wirePeek('peek','pass');
   const oauth=async(provider)=>{
+    const errEl=document.getElementById('autherr'); errEl.textContent='';
     try{
+      const SL = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SocialLogin;
+      if(SL && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()){
+        await ensureSocialLoginReady();
+        if(provider==='google'){
+          const r = await SL.login({ provider:'google', options:{ scopes:['email','profile'], forceRefreshToken:true } });
+          const idToken = r?.result?.idToken || r?.idToken;
+          if(!idToken) throw new Error('No Google ID token returned');
+          const { error } = await sb.auth.signInWithIdToken({ provider:'google', token:idToken });
+          if(error) throw error;
+        } else if(provider==='apple'){
+          // Apple requires a nonce we generate; we send the SHA-256 to Apple, then verify the raw nonce in the JWT.
+          const rawNonce = _b64url(crypto.getRandomValues(new Uint8Array(32)));
+          const hashedNonce = await _sha256Hex(rawNonce);
+          const r = await SL.login({ provider:'apple', options:{ scopes:['email','name'], nonce:hashedNonce } });
+          const idToken = r?.result?.idToken || r?.idToken;
+          if(!idToken) throw new Error('No Apple ID token returned');
+          const { error } = await sb.auth.signInWithIdToken({ provider:'apple', token:idToken, nonce:rawNonce });
+          if(error) throw error;
+        }
+        return;
+      }
+      // Web / PWA fallback: classic Supabase OAuth redirect
       const { error } = await sb.auth.signInWithOAuth({ provider, options:{ redirectTo: location.origin + location.pathname } });
       if(error) throw error;
-    }catch(e){ toast(provider==='google'?'Google sign-in is not set up yet.':'Apple sign-in is not set up yet.'); }
+    }catch(e){
+      const msg = e?.message || String(e);
+      if(/cancel|cancelled|canceled/i.test(msg)) return;   // user backed out, stay quiet
+      errEl.textContent = (provider==='google'?'Google sign-in failed: ':'Apple sign-in failed: ')+msg;
+    }
   };
   const g=document.getElementById('google'); if(g) g.onclick=()=>oauth('google');
   const a=document.getElementById('apple'); if(a) a.onclick=()=>oauth('apple');
