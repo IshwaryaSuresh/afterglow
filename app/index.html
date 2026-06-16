@@ -893,7 +893,9 @@ async function sendGlow(){
 
 let HAPTICS = localStorage.getItem('afterglow_haptics')!=='off';   // gentle by default; user can mute
 // Native app → Apple Core Haptics / Android via Capacitor Haptics plugin (rich, reliable).
-const CapHaptics = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) ? window.Capacitor.Plugins.Haptics : null;
+// Capacitor injects its bridge AFTER parse on iOS, so we resolve the plugin lazily on each call.
+function getCapHaptics(){ return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) || null; }
+window.__lastHap='';
 // iOS Safari/PWA has NO Vibration API; iOS 17.4+ can fire a haptic via the native <input switch> control.
 let _hapSwitch=null;
 function _iosHapticInit(){
@@ -915,13 +917,28 @@ function wirePeek(btnId, inputId){
     b.setAttribute('aria-label', showing?'Show password':'Hide password');
   };
 }
+function _hapStatus(s){ window.__lastHap=s; const el=document.getElementById('hapStatus'); if(el) el.textContent='Last: '+s; }
 function vib(p){
-  if(!HAPTICS) return;
+  if(!HAPTICS){ _hapStatus('OFF (toggle off)'); return; }
+  const pattern=Array.isArray(p)?p:[0,p];
   try{
-    if(CapHaptics){ const strong=Array.isArray(p)||p>24; CapHaptics.impact({ style: strong?'MEDIUM':'LIGHT' }); return; }
-    if(navigator.vibrate){ navigator.vibrate(p); return; }      // Android web
-    _iosHapticInit(); if(_hapSwitch) _hapSwitch.click();         // iOS web: a light tap (best-effort, in-gesture only)
-  }catch(e){}
+    const Cap=getCapHaptics();
+    if(Cap){
+      // Play multi-pulse patterns as a timed sequence of impacts so "warmth lands" feels like more than one tap.
+      let t=0, pulses=0;
+      for(let i=0;i<pattern.length;i++){
+        const ms=pattern[i];
+        if(i%2===0){ t+=ms; continue; }                                  // even index = gap
+        const style = ms>=45?'HEAVY':(ms>=24?'MEDIUM':'LIGHT');
+        setTimeout(()=>{ try{ Cap.impact({ style }); }catch(e){} }, t);
+        t+=ms; pulses++;
+      }
+      _hapStatus('CapHaptics, '+pulses+' pulse'+(pulses===1?'':'s')); return;
+    }
+    if(navigator.vibrate){ const ok=navigator.vibrate(p); _hapStatus('navigator.vibrate → '+ok); return; }
+    _iosHapticInit(); if(_hapSwitch){ _hapSwitch.click(); _hapStatus('iOS switch-tap'); return; }
+    _hapStatus('no haptic path (Capacitor bridge not present, no vibrate API)');
+  }catch(e){ _hapStatus('error: '+e.message); }
 }
 function reducedMotion(){ return window.matchMedia('(prefers-reduced-motion:reduce)').matches; }
 function dayPart(){ const h=new Date().getHours(); return h<5?'late':h<12?'morning':h<17?'afternoon':h<22?'evening':'late'; }
@@ -1416,7 +1433,10 @@ function renderNotif(){
             <button class="chip hap" data-h="breath">shared breath</button>
             <button class="chip hap" data-h="celebrate">a milestone</button>
           </div>
-          <p class="faint" style="font-size:11px;margin-top:10px;max-width:300px">On iPhone in the browser, tap firmly. The full vocabulary plays through the native app.</p>
+          <p id="hapStatus" class="faint serif-it" style="font-size:12px;margin-top:10px;max-width:300px;min-height:18px">Last: (tap a chip)</p>
+          <p class="faint" style="font-size:11px;margin-top:4px;max-width:300px">On iPhone in the browser, tap firmly. The full vocabulary plays through the native app.</p>
+          <button class="link" id="hapDiag" style="font-size:12px;margin-top:8px">Show diagnostic</button>
+          <pre id="hapDiagOut" class="hidden" style="font-size:11px;text-align:left;background:rgba(0,0,0,.35);padding:10px;border-radius:8px;margin-top:8px;white-space:pre-wrap"></pre>
         </div>`:''}
       </div>
       <p class="faint serif-it" style="font-size:12px;margin-top:14px;max-width:300px">For a reminder even when the app is fully closed, add Afterglow to your Home Screen.</p>
@@ -1430,6 +1450,24 @@ function renderNotif(){
   document.querySelectorAll('#hapDemo .hap').forEach(b=>{
     b.onclick=()=>{ vib(HAP_DEMOS[b.dataset.h]); b.animate([{transform:'scale(1)'},{transform:'scale(.96)'},{transform:'scale(1)'}],{duration:240}); };
   });
+  const dg=document.getElementById('hapDiag'), dgOut=document.getElementById('hapDiagOut');
+  if(dg) dg.onclick=()=>{
+    const cap=getCapHaptics();
+    const info={
+      HAPTICS_flag: HAPTICS,
+      capacitor_present: !!window.Capacitor,
+      capacitor_platform: window.Capacitor?.getPlatform?.() || 'n/a',
+      capacitor_isNativePlatform: window.Capacitor?.isNativePlatform?.() || false,
+      plugins_keys: window.Capacitor?.Plugins ? Object.keys(window.Capacitor.Plugins) : [],
+      Haptics_plugin_found: !!cap,
+      Haptics_methods: cap ? Object.keys(cap) : [],
+      navigator_vibrate: !!navigator.vibrate,
+      last_vib: window.__lastHap || '(none yet)',
+      userAgent: navigator.userAgent.slice(0,120),
+    };
+    dgOut.textContent=JSON.stringify(info,null,2);
+    dgOut.classList.remove('hidden');
+  };
   const en=document.getElementById('enable');
   if(en) en.onclick=async()=>{
     setBtn('enable', true, 'Asking…');
