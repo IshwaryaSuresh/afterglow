@@ -1422,6 +1422,7 @@ function renderNotif(){
       <div style="width:100%;max-width:280px;margin-top:22px;border-top:1px solid var(--line);padding-top:18px">
         <button class="btn ghost" id="haptics">${HAPTICS?'Gentle haptics: on':'Gentle haptics: off'}</button>
         <p class="faint" style="font-size:12px;margin-top:8px;max-width:300px">Afterglow can give a soft touch when warmth passes or your person appears. Turn it off if you prefer stillness.</p>
+        ${HAPTICS?`<p class="faint" style="font-size:11px;margin-top:10px;max-width:300px;opacity:.75">Not feeling them? Check <b>iPhone Settings → Sounds &amp; Haptics → System Haptics</b> is on, and <b>Play Haptics in Silent Mode</b> if your phone is on silent.</p>`:''}
         ${HAPTICS?`<div id="hapDemo" style="margin-top:16px">
           <p class="faint serif-it" style="font-size:12px;margin-bottom:10px">Try a feeling. Each one is what you would feel in that moment.</p>
           <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
