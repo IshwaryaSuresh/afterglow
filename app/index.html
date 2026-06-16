@@ -57,6 +57,12 @@
     background:rgba(2,6,10,.5); color:var(--ink); font-family:var(--sans); font-size:15px; margin-top:10px;
   }
   input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .pwrap{ position:relative; }
+  .pwrap input{ padding-right:62px; }
+  .pwrap .eye{ position:absolute; right:8px; top:50%; transform:translateY(-50%); height:34px; padding:0 12px;
+    background:transparent; border:0; color:rgba(230,245,241,.7); font-family:var(--sans); font-size:13px;
+    border-radius:999px; cursor:pointer; }
+  .pwrap .eye:hover{ color:var(--ink); background:rgba(94,234,212,.08); }
   textarea.bignote{ width:100%; min-height:108px; margin-top:10px; padding:14px 16px; border-radius:16px; border:1px solid var(--line);
     background:rgba(2,6,10,.5); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.5; resize:none; }
   textarea.bignote:focus{ outline:2px solid var(--accent); outline-offset:1px; }
@@ -567,7 +573,7 @@ function renderAuth(mode){
         `:''}
         ${signup?'<input id="name" aria-label="Your name" placeholder="Your name" autocomplete="name" />':''}
         <input id="email" aria-label="Email" type="email" placeholder="you@email.com" autocomplete="email" />
-        <input id="pass" aria-label="Password" type="password" placeholder="Password" autocomplete="${signup?'new-password':'current-password'}" />
+        <div class="pwrap"><input id="pass" aria-label="Password" type="password" placeholder="Password" autocomplete="${signup?'new-password':'current-password'}" /><button type="button" class="eye" id="peek" aria-label="Show password" aria-pressed="false">show</button></div>
         ${!signup?'<p style="text-align:right;margin-top:8px"><a class="link" id="forgot" style="font-size:13px">Forgot password?</a></p>':''}
         <div class="err" role="alert" id="autherr"></div>
         <button class="btn" id="authbtn">${signup?'Create account':'Sign in'}</button>
@@ -579,6 +585,7 @@ function renderAuth(mode){
   </div>`;
   document.getElementById('toggle').onclick=()=>renderAuth(signup?'in':'up');
   const fg=document.getElementById('forgot'); if(fg) fg.onclick=()=>renderResetRequest();
+  wirePeek('peek','pass');
   const oauth=async(provider)=>{
     try{
       const { error } = await sb.auth.signInWithOAuth({ provider, options:{ redirectTo: location.origin + location.pathname } });
@@ -644,10 +651,11 @@ function renderNewPassword(){
     <div class="glow glow-calm sm"></div>
     <h2>Choose a new password</h2>
     <div style="width:100%;max-width:340px">
-      <input id="np1" aria-label="New password" type="password" placeholder="New password" autocomplete="new-password" />
+      <div class="pwrap"><input id="np1" aria-label="New password" type="password" placeholder="New password" autocomplete="new-password" /><button type="button" class="eye" id="peek2" aria-label="Show password" aria-pressed="false">show</button></div>
       <div class="err" role="alert" id="nperr"></div>
       <button class="btn" id="setpass">Save and continue</button>
     </div></div></div>`;
+  wirePeek('peek2','np1');
   document.getElementById('setpass').onclick=async()=>{
     const p=val('np1'); const errEl=document.getElementById('nperr'); errEl.textContent='';
     if(p.length<6){ errEl.textContent='At least 6 characters, please.'; return; }
@@ -895,6 +903,17 @@ function _iosHapticInit(){
   l.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
   const i=document.createElement('input'); i.type='checkbox'; i.setAttribute('switch',''); i.tabIndex=-1;
   l.appendChild(i); document.body.appendChild(l); _hapSwitch=i;
+}
+function wirePeek(btnId, inputId){
+  const b=document.getElementById(btnId), i=document.getElementById(inputId);
+  if(!b||!i) return;
+  b.onclick=()=>{
+    const showing=i.type==='text';
+    i.type=showing?'password':'text';
+    b.textContent=showing?'show':'hide';
+    b.setAttribute('aria-pressed', showing?'false':'true');
+    b.setAttribute('aria-label', showing?'Show password':'Hide password');
+  };
 }
 function vib(p){
   if(!HAPTICS) return;
