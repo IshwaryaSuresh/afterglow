@@ -648,6 +648,9 @@ function renderAuth(mode){
           const { error } = await sb.auth.signInWithIdToken({ provider:'apple', token:idToken, nonce:rawNonce });
           if(error) throw error;
         }
+        // signInWithIdToken sets the session in-memory (no page reload like web), so navigate manually.
+        const { data:{ session } } = await sb.auth.getSession();
+        if(session){ STATE.user=session.user; localStorage.removeItem('afterglow_arrived'); await loadContext(); }
         return;
       }
       // Web / PWA fallback: classic Supabase OAuth redirect
