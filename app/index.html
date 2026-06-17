@@ -417,10 +417,10 @@ const BILLING_ENABLED = false;   // flip to true once RevenueCat keys + store pr
 // Paste these after creating OAuth clients in Google Cloud Console + a Services ID in Apple Dev portal.
 // Web/PWA falls back to Supabase signInWithOAuth (Supabase Dashboard manages those client IDs separately).
 const SOCIAL_KEYS = {
-  googleIOS:      "REPLACE_ME.apps.googleusercontent.com",  // iOS OAuth client ID from Google Cloud
-  googleAndroid:  "REPLACE_ME.apps.googleusercontent.com",  // Android OAuth client ID (uses keystore SHA-1)
-  googleWebForServer: "REPLACE_ME.apps.googleusercontent.com", // Web client ID, passed as serverClientId for Android offline access
-  appleServicesId:"tech.madeforhumans.afterglow.signin",    // Services ID registered in Apple Dev portal
+  googleIOS:      "953513206330-od46r5jft303rdngtbem8sbqflboc4hf.apps.googleusercontent.com",  // iOS OAuth client ID
+  googleAndroid:  "953513206330-h0fpu2ecjtj737hk334ltn1tj9bv8tal.apps.googleusercontent.com",  // Android OAuth client ID (keystore SHA-1)
+  googleWebForServer: "953513206330-uctjbhrvag47q1541mdadtmdetbelt6s.apps.googleusercontent.com", // Web client ID (also the Supabase Google provider client) — serverClientId for Android offline access
+  appleServicesId:"tech.madeforhumans.afterglow.signin",    // Services ID registered in Apple Dev portal (pending Apple membership)
   appleRedirect:  "https://daharpiwvdewulbsdxge.supabase.co/auth/v1/callback"  // Supabase's Apple callback
 };
 let _socialReady=false;
