@@ -437,8 +437,11 @@ async function ensureSocialLoginReady(){
       mode: 'online'
     },
     apple: {
-      clientId:    SOCIAL_KEYS.appleServicesId,
-      redirectUrl: SOCIAL_KEYS.appleRedirect
+      clientId: SOCIAL_KEYS.appleServicesId,
+      // iOS: NO redirectUrl — an empty redirect makes the plugin return Apple's native idToken
+      // directly (which we hand to Supabase). A set redirectUrl triggers a custom-backend POST
+      // flow that Supabase doesn't speak. Android Apple uses the web redirect, so set it there.
+      ...(platform==='android' ? { redirectUrl: SOCIAL_KEYS.appleRedirect } : {})
     }
   });
   _socialReady=true;
