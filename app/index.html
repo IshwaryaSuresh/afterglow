@@ -538,13 +538,15 @@ async function loadContext(){
     await renderToday();
     try{ await syncLanterns(); }catch(e){}   // bloom a lantern if one was crossed today
   }catch(e){
-    renderError("We could not reach your glow. Check your connection.", loadContext);
+    try{ console.error('loadContext failed:', e); }catch(_){}
+    renderError("We could not reach your glow. Check your connection.", loadContext, (e&&(e.message||e.toString()))||'unknown');
   }
 }
 
-function renderError(msg, retry){
+function renderError(msg, retry, detail){
   currentView='error';
-  root.innerHTML='<div class="screen"><div class="center"><h2 class="serif-it">A quiet hiccup.</h2><p class="serif-it dim" style="text-align:center;max-width:280px">'+esc(msg)+'</p><button class="btn" id="retryBtn" style="margin-top:20px">Try again</button></div></div>';
+  const det = detail ? '<p class="faint" style="text-align:center;max-width:300px;font-size:11px;margin-top:14px;opacity:.6">'+esc(String(detail))+'</p>' : '';
+  root.innerHTML='<div class="screen"><div class="center"><h2 class="serif-it">A quiet hiccup.</h2><p class="serif-it dim" style="text-align:center;max-width:280px">'+esc(msg)+'</p><button class="btn" id="retryBtn" style="margin-top:20px">Try again</button>'+det+'</div></div>';
   const b=document.getElementById('retryBtn'); if(b) b.onclick=()=>{ if(retry) retry(); };
 }
 
