@@ -83,6 +83,8 @@
   /* visible keyboard focus everywhere; hidden for mouse/touch */
   :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:8px; }
   :focus:not(:focus-visible){ outline:none; }
+  /* Headings get programmatic focus for screen readers on each view; never show a visible ring on them. */
+  [tabindex="-1"]:focus, [tabindex="-1"]:focus-visible{ outline:none; }
   [role="button"]{ cursor:pointer; }
   .err{ color:#ff9b9b; font-size:13px; margin-top:10px; min-height:18px; }
   .card{ width:100%; border:1px solid var(--line); background:rgba(230,245,241,.02); border-radius:22px; padding:26px 20px; text-align:center; }
