@@ -380,7 +380,7 @@ async function syncLanterns(){
 function renderLantern(L, opts){
   opts=opts||{}; currentView='lantern';
   const reduce=reducedMotion();
-  if(opts.celebrate){ vib(reduce?'success':[0,45,60,45,60,100]); if(!reduce) setTimeout(()=>vib('success'),420); }
+  if(opts.celebrate) hapticWin(reduce?260:650);
   root.innerHTML=`<div class="screen"><div class="center">
     <div class="lantern-stage" id="lanternStage">
       <div class="lantern ${(opts.celebrate && !reduce)?'rise':''}"></div>
@@ -560,7 +560,7 @@ function subscribeRealtime(){
   STATE.realtimeChan = sb.channel('couple-'+STATE.couple)
     .on('postgres_changes', { event:'*', schema:'public', table:'glows', filter:'couple_id=eq.'+STATE.couple }, (payload)=>{
       const g = payload.new;
-      if(payload.eventType==='INSERT' && g && g.user_id!==STATE.user.id){ notifyPartnerGlow(g); vib([0,28,40,55]); }  // their glow arrives, a felt "they're here"
+      if(payload.eventType==='INSERT' && g && g.user_id!==STATE.user.id){ notifyPartnerGlow(g); hapticRumble(200); }  // their glow arrives, a felt "they're here"
       if(currentView==='today') renderToday(true);
     })
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'warmth', filter:'couple_id=eq.'+STATE.couple }, (payload)=>{
@@ -812,7 +812,7 @@ function renderInviteCode(code){
   // poll for partner joining
   const poll = setInterval(async()=>{
     const { data:members } = await sb.from('couple_members').select('user_id').eq('couple_id', STATE.couple);
-    if((members||[]).length>=2){ clearInterval(poll); toast("You are paired!"); vib([0,40,55,40,70]); vib('success'); loadContext(); }
+    if((members||[]).length>=2){ clearInterval(poll); toast("You are paired!"); hapticWin(380); loadContext(); }
   }, 4000);
 }
 
@@ -825,7 +825,7 @@ async function joinWithCode(){
     const { data, error } = await sb.rpc('join_with_code', { p_code: code });
     if(error) throw error;
     if(!data || data.error){ errEl.textContent="That code did not match. Check it and try again."; setBtn('joinBtn',false,'Join with code'); return; }
-    toast("You are paired!"); vib([0,40,55,40,70]); vib('success');
+    toast("You are paired!"); hapticWin(380);
     await loadContext();
   }catch(e){ errEl.textContent=e.message; setBtn('joinBtn',false,'Join with code'); }
 }
@@ -964,7 +964,7 @@ async function sendGlow(){
       throw error;
     }
     if(draft.priv){ await sb.from('glow_private').insert({ glow_id:glow.id, user_id:STATE.user.id, note:draft.priv }); }
-    vib('success');   // a satisfying flourish — your glow is on its way
+    hapticWin(320);   // your glow is on its way: a strong win
     renderSent();
   }catch(e){ toast(e.message); setBtn('sendBtn',false,'Send'); }
 }
@@ -1025,6 +1025,27 @@ function vib(p){
     _iosHapticInit(); if(_hapSwitch){ _hapSwitch.click(); _hapStatus('iOS switch-tap'); return; }
     _hapStatus('no haptic path (Capacitor bridge not present, no vibrate API)');
   }catch(e){ _hapStatus('error: '+e.message); }
+}
+// A sustained, INTENSE rumble — many HEAVY taps in tight succession. This is the strongest iOS
+// allows without custom Core Haptics; rapid repetition reads as one big buzz, not separate taps.
+function hapticRumble(durationMs, gap){
+  if(!HAPTICS) return;
+  gap = gap || 42;
+  const Cap=getCapHaptics();
+  if(Cap){
+    const n=Math.max(1,Math.round(durationMs/gap));
+    for(let i=0;i<n;i++) setTimeout(()=>{ try{ Cap.impact({ style:'HEAVY' }); }catch(e){} }, i*gap);
+    _hapStatus('RUMBLE '+n+'×HEAVY'); return;
+  }
+  if(navigator.vibrate){ navigator.vibrate(durationMs); _hapStatus('web rumble '+durationMs+'ms'); }
+  else { _iosHapticInit(); if(_hapSwitch) _hapSwitch.click(); }
+}
+// The big "win" — a strong rumble capped with the SUCCESS notification flourish.
+function hapticWin(durationMs){
+  if(!HAPTICS) return;
+  hapticRumble(durationMs||300);
+  const Cap=getCapHaptics();
+  if(Cap){ setTimeout(()=>{ try{ Cap.notification({ type:'SUCCESS' }); }catch(e){} }, (durationMs||300)+40); }
 }
 function reducedMotion(){ return window.matchMedia('(prefers-reduced-motion:reduce)').matches; }
 function dayPart(){ const h=new Date().getHours(); return h<5?'late':h<12?'morning':h<17?'afternoon':h<22?'evening':'late'; }
@@ -1127,7 +1148,7 @@ function renderReceive(theirs){
     if(done) return; done=true;
     if(raf){ cancelAnimationFrame(raf); raf=null; }
     if(timer){ clearTimeout(timer); timer=null; }
-    vib([0,40,60,90,80]); setTimeout(()=>vib('success'),360);   // warmth lands — a rising thump, then a held flourish
+    hapticWin(550);   // warmth lands: long, intense rumble + success
     ring.classList.remove('on');
     btn.disabled=true; btn.classList.remove('warm-btn-hold'); btn.textContent='warmth sent';
     const title=document.getElementById('warmTitle'); if(title) title.textContent='';
@@ -1531,11 +1552,11 @@ function renderNotif(){
   document.getElementById('back').onclick=renderMenu;
   document.getElementById('haptics').onclick=()=>{ HAPTICS=!HAPTICS; localStorage.setItem('afterglow_haptics', HAPTICS?'on':'off'); if(HAPTICS) vib([0,18,30,20]); renderNotif(); };
   const HAP_DEMOS={
-    tick:7, send:'success', land:[0,40,60,90,80], arrives:[0,28,40,55],
-    paired:[0,40,55,40,70], breath:9, celebrate:[0,45,60,45,60,100]
+    tick:()=>vib(7), send:()=>hapticWin(320), land:()=>hapticWin(550), arrives:()=>hapticRumble(200),
+    paired:()=>hapticWin(380), breath:()=>vib(9), celebrate:()=>hapticWin(650)
   };
   document.querySelectorAll('#hapDemo .hap').forEach(b=>{
-    b.onclick=()=>{ const h=HAP_DEMOS[b.dataset.h]; vib(h); if((b.dataset.h==='land'||b.dataset.h==='celebrate')) setTimeout(()=>vib('success'),360); b.animate([{transform:'scale(1)'},{transform:'scale(.96)'},{transform:'scale(1)'}],{duration:240}); };
+    b.onclick=()=>{ (HAP_DEMOS[b.dataset.h]||(()=>{}))(); b.animate([{transform:'scale(1)'},{transform:'scale(.96)'},{transform:'scale(1)'}],{duration:240}); };
   });
   const dg=document.getElementById('hapDiag'), dgOut=document.getElementById('hapDiagOut');
   if(dg) dg.onclick=()=>{
