@@ -412,8 +412,8 @@ let STATE = { user:null, profile:null, couple:null, partner:null, realtimeChan:n
 // ============ NATIVE BILLING (RevenueCat): no-op on web ============
 const RC = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins)
   ? (window.Capacitor.Plugins.Purchases || null) : null;
-const RC_KEYS = { ios:"appl_REPLACE_ME", android:"goog_REPLACE_ME" };  // paste your RevenueCat public keys
-const BILLING_ENABLED = false;   // flip to true once RevenueCat keys + store products (7-day trial) are live
+const RC_KEYS = { ios:"appl_RedFsKEUsXDcNvBnbNIxkzbwVGZ", android:"goog_REPLACE_ME" };  // RevenueCat public SDK keys
+const BILLING_ENABLED = true;   // RevenueCat keys + afterglow_monthly/afterglow_yearly (7-day trial) are live
 
 // ============ NATIVE SOCIAL SIGN-IN (Apple + Google) ============
 // Paste these after creating OAuth clients in Google Cloud Console + a Services ID in Apple Dev portal.
@@ -457,40 +457,76 @@ async function _sha256Hex(str){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
-let rcReady = false;
+let rcReady = false, rcLoggedIn = false;
 async function rcInit(){
-  if(!RC || rcReady) return rcReady;
-  try{ const p=window.Capacitor.getPlatform(); await RC.configure({ apiKey: p==='ios'?RC_KEYS.ios:RC_KEYS.android }); rcReady=true; }catch(e){}
+  if(!RC) return false;
+  if(!rcReady){ try{ const p=window.Capacitor.getPlatform(); await RC.configure({ apiKey: p==='ios'?RC_KEYS.ios:RC_KEYS.android }); rcReady=true; }catch(e){ return false; } }
+  // Tie purchases to the Supabase account so the right person is credited and Restore works across devices.
+  if(rcReady && !rcLoggedIn && STATE.user){ try{ await RC.logIn({ appUserID: STATE.user.id }); rcLoggedIn=true; }catch(e){} }
   return rcReady;
 }
+// Does THIS person personally have an active subscription/trial?
 async function hasPro(){
   if(!RC) return true;                       // web is always unlocked
   try{ await rcInit(); const r=await RC.getCustomerInfo(); return !!(r.customerInfo.entitlements.active && r.customerInfo.entitlements.active['pro']); }
   catch(e){ return false; }
 }
+// Couple-shared unlock: one subscription covers both partners. True if I OR my partner is subscribed.
+async function coupleHasPremium(){
+  if(!RC) return true;                       // web is always unlocked
+  const mine = await hasPro();
+  syncMyPremiumFlag(mine);                    // publish my status so my partner's app can read it
+  if(mine) return true;
+  return !!(STATE.partner && STATE.partner.is_premium);
+}
+// Mirror my live subscription status into my profile so the paired partner unlocks too.
+async function syncMyPremiumFlag(v){
+  try{
+    if(STATE.user && STATE.profile && STATE.profile.is_premium!==v){
+      await sb.from('profiles').update({ is_premium:v }).eq('id', STATE.user.id);
+      STATE.profile.is_premium=v;
+    }
+  }catch(e){}
+}
 async function renderPaywall(opts){
   opts=opts||{}; currentView='paywall';
-  let price='', pkg=null;
-  if(RC){ try{ await rcInit(); const o=await RC.getOfferings(); pkg=o.current && o.current.availablePackages && o.current.availablePackages[0]; price=(pkg&&pkg.product&&pkg.product.priceString)||''; }catch(e){} }
+  let pkgs=[];
+  if(RC){ try{ await rcInit(); const o=await RC.getOfferings(); pkgs=(o.current && o.current.availablePackages)||[]; }catch(e){} }
+  // Identify the annual vs monthly package (by RevenueCat packageType, falling back to product id).
+  const isAnnual = p => (p.packageType==='ANNUAL') || /year/i.test(p.product?.identifier||'');
+  const annual  = pkgs.find(isAnnual);
+  const monthly = pkgs.find(p=>!isAnnual(p));
+  const them = esc(STATE.partner?.display_name||'your person');
+  const priceOf = p => (p && p.product && p.product.priceString) || '';
+  const buyBtn = (p, label, sub, primary) => p ? `
+    <button class="btn ${primary?'':'ghost'} buyPkg" data-pid="${esc(p.identifier)}" style="max-width:320px;display:flex;flex-direction:column;gap:2px;padding:14px">
+      <span>${label}${priceOf(p)?' · '+esc(priceOf(p)):''}</span>
+      ${sub?`<span class="faint" style="font-size:12px">${sub}</span>`:''}
+    </button>` : '';
   root.innerHTML=`<div class="screen"><div class="center">
     <div class="glow glow-love lg"></div>
     <h1 style="font-size:27px;max-width:330px">A quiet place, just for two.</h1>
-    <p class="dim" style="max-width:320px;font-size:15px">Afterglow is one gentle ritual a day. Try it free for 7 days.${price?(' Then '+esc(price)+'/month.'):''} Cancel anytime.</p>
-    <button class="btn" id="startTrial" style="max-width:300px">Start 7-day free trial</button>
-    <button class="btn ghost" id="restore" style="max-width:300px">Restore purchase</button>
+    <p class="dim" style="max-width:320px;font-size:15px">One gentle ritual a day. <b>One subscription unlocks Afterglow for both of you</b> — only one of you needs to pay. Free for 7 days, cancel anytime.</p>
+    ${buyBtn(annual, 'Yearly', annual&&monthly?'best value · billed once a year':'billed yearly', true)}
+    ${buyBtn(monthly, 'Monthly', 'billed every month', !annual)}
+    <button class="btn ghost" id="restore" style="max-width:320px;margin-top:4px">Restore purchase</button>
+    ${(!pkgs.length)?`<p class="faint" style="font-size:12px;max-width:300px">${opts.preview?'Preview only.':'Store unavailable — check your connection and try again.'}</p>`:''}
     ${opts.preview?'<a class="link" id="skip" role="button" tabindex="0" style="margin-top:6px">Continue (preview)</a>':''}
     <p class="faint serif-it" style="font-size:12px;max-width:300px;margin-top:8px">No ads, no streaks. Your private note is always yours.</p>
-    <p class="faint" style="font-size:12px;margin-top:4px">Auto-renews monthly after the trial · cancel anytime in your store settings.<br>
+    <p class="faint" style="font-size:12px;margin-top:4px">7-day free trial, then auto-renews · cancel anytime in your store settings.<br>
       <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
       <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
   </div></div>`;
-  document.getElementById('startTrial').onclick=async()=>{
-    if(!RC || !pkg){ toast(opts.preview?'Preview only. Connect RevenueCat to enable.':'Store unavailable. Try again.'); return; }
-    setBtn('startTrial', true, 'Opening…');
-    try{ await RC.purchasePackage({ aPackage:pkg }); if(await hasPro()){ boot(); return; } }catch(e){}
-    setBtn('startTrial', false, 'Start 7-day free trial');
-  };
-  document.getElementById('restore').onclick=async()=>{ if(!RC) return; try{ await RC.restorePurchases(); }catch(e){} if(await hasPro()) boot(); else toast('No purchase found.'); };
+  document.querySelectorAll('.buyPkg').forEach(b=>{
+    b.onclick=async()=>{
+      const p=pkgs.find(x=>x.identifier===b.dataset.pid);
+      if(!RC || !p){ toast(opts.preview?'Preview only. Connect RevenueCat to enable.':'Store unavailable. Try again.'); return; }
+      const orig=b.querySelector('span').textContent; b.querySelector('span').textContent='Opening…'; b.disabled=true;
+      try{ await RC.purchasePackage({ aPackage:p }); if(await hasPro()){ await syncMyPremiumFlag(true); boot(); return; } }catch(e){}
+      b.querySelector('span').textContent=orig; b.disabled=false;
+    };
+  });
+  document.getElementById('restore').onclick=async()=>{ if(!RC) return; try{ await RC.restorePurchases(); }catch(e){} if(await hasPro()){ await syncMyPremiumFlag(true); boot(); } else toast('No purchase found.'); };
   const sk=document.getElementById('skip'); if(sk) sk.onclick=()=> STATE.user?loadContext():renderAuth();
 }
 
@@ -498,8 +534,7 @@ async function boot(){
   const { data:{ session } } = await sb.auth.getSession();
   if(!session){ renderAuth(); return; }
   STATE.user = session.user;
-  if(RC && BILLING_ENABLED && !(await hasPro())){ renderPaywall(); return; }   // gate native users behind the trial
-  await loadContext();
+  await loadContext();   // the subscription gate lives in loadContext (needs the couple loaded for couple-shared unlock)
 }
 sb.auth.onAuthStateChange((event, session)=>{
   if(event==='PASSWORD_RECOVERY'){ STATE.user = session && session.user; renderNewPassword(); return; }
@@ -538,6 +573,8 @@ async function loadContext(){
       let { data:pp } = await sb.from('profiles').select('*').eq('id', partnerId).maybeSingle();
       STATE.partner = pp || {id:partnerId, display_name:'Your person'};
     } else { STATE.partner = null; }
+    // Couple-shared subscription gate: one paid plan unlocks both partners. Pairing itself is free.
+    if(RC && BILLING_ENABLED && !(await coupleHasPremium())){ renderPaywall(); return; }
     subscribeRealtime();
     subscribePresence();                     // live "your person is here" awareness
     await renderToday();
