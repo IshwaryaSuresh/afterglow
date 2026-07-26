@@ -510,7 +510,9 @@ async function renderPaywall(opts){
     ${buyBtn(annual, 'Yearly', annual&&monthly?'best value · billed once a year':'billed yearly', true)}
     ${buyBtn(monthly, 'Monthly', 'billed every month', !annual)}
     <button class="btn ghost" id="restore" style="max-width:320px;margin-top:4px">Restore purchase</button>
-    ${(!pkgs.length)?`<p class="faint" style="font-size:12px;max-width:300px">${opts.preview?'Preview only.':'Store unavailable — check your connection and try again.'}</p>`:''}
+    ${(!pkgs.length)?`<p class="faint" style="font-size:12px;max-width:300px">${opts.preview?'Preview only.':'The store is taking a moment — please try again in a little while.'}</p>
+    <button class="btn ghost" id="pwRetry" style="max-width:320px;margin-top:4px">Try again</button>`:''}
+    <a class="link" id="pwSignout" role="button" tabindex="0" style="margin-top:10px;font-size:14px">Sign out</a>
     ${opts.preview?'<a class="link" id="skip" role="button" tabindex="0" style="margin-top:6px">Continue (preview)</a>':''}
     <p class="faint serif-it" style="font-size:12px;max-width:300px;margin-top:8px">No ads, no streaks. Your private note is always yours.</p>
     <p class="faint" style="font-size:12px;margin-top:4px">7-day free trial, then auto-renews · cancel anytime in your store settings.<br>
@@ -527,6 +529,8 @@ async function renderPaywall(opts){
     };
   });
   document.getElementById('restore').onclick=async()=>{ if(!RC) return; try{ await RC.restorePurchases(); }catch(e){} if(await hasPro()){ await syncMyPremiumFlag(true); boot(); } else toast('No purchase found.'); };
+  const rt=document.getElementById('pwRetry'); if(rt) rt.onclick=()=>renderPaywall(opts);
+  const so=document.getElementById('pwSignout'); if(so) so.onclick=async()=>{ try{ await sb.auth.signOut(); }catch(e){ renderAuth(); } };
   const sk=document.getElementById('skip'); if(sk) sk.onclick=()=> STATE.user?loadContext():renderAuth();
 }
 
