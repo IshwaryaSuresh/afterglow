@@ -682,10 +682,19 @@ function renderAuth(mode){
       if(SL && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()){
         await ensureSocialLoginReady();
         if(provider==='google'){
-          const r = await SL.login({ provider:'google', options:{ scopes:['email','profile'], forceRefreshToken:true } });
+          // Google's SDK now stamps a nonce into the token, so we must control it: SHA-256 goes
+          // to Google, the raw nonce to Supabase. forcePrompt avoids cached tokens carrying an
+          // old SDK-generated nonce that we can never match.
+          const rawNonce = _b64url(crypto.getRandomValues(new Uint8Array(32)));
+          const hashedNonce = await _sha256Hex(rawNonce);
+          const r = await SL.login({ provider:'google', options:{ scopes:['email','profile'], forcePrompt:true, forceRefreshToken:true, nonce:hashedNonce } });
           const idToken = r?.result?.idToken || r?.idToken;
           if(!idToken) throw new Error('No Google ID token returned');
-          const { error } = await sb.auth.signInWithIdToken({ provider:'google', token:idToken });
+          let { error } = await sb.auth.signInWithIdToken({ provider:'google', token:idToken, nonce:rawNonce });
+          if(error && /nonce/i.test(error.message||'')){
+            // Some SDK paths put the raw value in the token verbatim; retry accordingly.
+            ({ error } = await sb.auth.signInWithIdToken({ provider:'google', token:idToken, nonce:hashedNonce }));
+          }
           if(error) throw error;
         } else if(provider==='apple'){
           // Apple requires a nonce we generate; we send the SHA-256 to Apple, then verify the raw nonce in the JWT.
