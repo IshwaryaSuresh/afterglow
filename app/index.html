@@ -261,7 +261,8 @@
 </div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.min.js"></script>
+<script>if(!window.supabase){document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/scr'+'ipt>');}</script>
 <script>
 // ============ CONFIG ============
 const SUPABASE_URL = "https://daharpiwvdewulbsdxge.supabase.co";
@@ -410,8 +411,6 @@ let STATE = { user:null, profile:null, couple:null, partner:null, realtimeChan:n
 
 // ============ AUTH BOOT ============
 // ============ NATIVE BILLING (RevenueCat): no-op on web ============
-const RC = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins)
-  ? (window.Capacitor.Plugins.Purchases || null) : null;
 const RC_KEYS = { ios:"appl_RedFsKEUsXDcNvBnbNIxkzbwVGZ", android:"goog_rCAaNqOHdcSlQVMFnUDCgWvFvta" };  // RevenueCat public SDK keys
 const BILLING_ENABLED = true;   // RevenueCat keys + afterglow_monthly/afterglow_yearly (7-day trial) are live
 
@@ -457,8 +456,11 @@ async function _sha256Hex(str){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
-let rcReady = false, rcLoggedIn = false;
+let rcReady = false, rcLoggedIn = false, rcDefinitive = false;
+// Resolve the plugin lazily every time: the Capacitor bridge can register after script parse.
+function RC_(){ const C=window.Capacitor; return (C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.Purchases) || null; }
 async function rcInit(){
+  const RC = RC_();
   if(!RC) return false;
   if(!rcReady){ try{ const p=window.Capacitor.getPlatform(); await RC.configure({ apiKey: p==='ios'?RC_KEYS.ios:RC_KEYS.android }); rcReady=true; }catch(e){ return false; } }
   // Tie purchases to the Supabase account so the right person is credited and Restore works across devices.
@@ -466,18 +468,43 @@ async function rcInit(){
   return rcReady;
 }
 // Does THIS person personally have an active subscription/trial?
+// rcDefinitive is true only when the store actually answered — an outage must never
+// be read as "not subscribed".
 async function hasPro(){
+  const RC = RC_();
+  rcDefinitive = false;
   if(!RC) return true;                       // web is always unlocked
-  try{ await rcInit(); const r=await RC.getCustomerInfo(); return !!(r.customerInfo.entitlements.active && r.customerInfo.entitlements.active['pro']); }
+  try{ await rcInit(); const r=await RC.getCustomerInfo(); rcDefinitive=true; return !!(r.customerInfo.entitlements.active && r.customerInfo.entitlements.active['pro']); }
   catch(e){ return false; }
 }
 // Couple-shared unlock: one subscription covers both partners. True if I OR my partner is subscribed.
 async function coupleHasPremium(){
-  if(!RC) return true;                       // web is always unlocked
+  if(!RC_()) return true;                    // web is always unlocked
   const mine = await hasPro();
-  syncMyPremiumFlag(mine);                    // publish my status so my partner's app can read it
+  if(rcDefinitive) syncMyPremiumFlag(mine);  // only publish REAL answers, never outage noise
   if(mine) return true;
-  return !!(STATE.partner && STATE.partner.is_premium);
+  if(STATE.partner && STATE.partner.is_premium) return true;
+  // Store unreachable: honor my last known status instead of locking a subscriber out.
+  if(!rcDefinitive && STATE.profile && STATE.profile.is_premium) return true;
+  return false;
+}
+// Sign out that always works: clears the store identity, tolerates offline, and
+// guarantees the UI actually leaves (the old handlers silently did nothing offline).
+async function doSignOut(){
+  try{ if(typeof stopInvitePoll==='function') stopInvitePoll(); }catch(e){}
+  try{ if(rcLoggedIn && RC_()){ await RC_().logOut(); } }catch(e){}
+  rcReady=false; rcLoggedIn=false; rcDefinitive=false;
+  try{ if('serviceWorker' in navigator) await unsubscribePush(); }catch(e){}
+  let ok=false;
+  try{ const { error } = await sb.auth.signOut(); ok=!error; }catch(e){}
+  if(!ok){ try{ await sb.auth.signOut({ scope:'local' }); ok=true; }catch(e){} }
+  // If no auth event fires (offline edge), force the reset ourselves.
+  setTimeout(()=>{ if(currentView!=='auth'){
+    if(STATE.realtimeChan){ try{ sb.removeChannel(STATE.realtimeChan); }catch(e){} }
+    if(STATE.presenceChan){ try{ sb.removeChannel(STATE.presenceChan); }catch(e){} }
+    STATE={user:null,profile:null,couple:null,partner:null,realtimeChan:null,presenceChan:null};
+    renderAuth();
+  } }, 400);
 }
 // Mirror my live subscription status into my profile so the paired partner unlocks too.
 async function syncMyPremiumFlag(v){
@@ -490,6 +517,7 @@ async function syncMyPremiumFlag(v){
 }
 async function renderPaywall(opts){
   opts=opts||{}; currentView='paywall';
+  const RC = RC_();
   let pkgs=[];
   if(RC){ try{ await rcInit(); const o=await RC.getOfferings(); pkgs=(o.current && o.current.availablePackages)||[]; }catch(e){} }
   // Identify the annual vs monthly package (by RevenueCat packageType, falling back to product id).
@@ -514,6 +542,7 @@ async function renderPaywall(opts){
     <button class="btn ghost" id="pwRetry" style="max-width:320px;margin-top:4px">Try again</button>`:''}
     ${STATE.user?.email?`<p class="faint" style="font-size:12px;margin-top:12px">Signed in as ${esc(STATE.user.email)}</p>`:''}
     <a class="link" id="pwSignout" role="button" tabindex="0" style="margin-top:2px;font-size:14px">Sign out</a>
+    ${STATE.couple?`<a class="link" id="pwAccount" role="button" tabindex="0" style="margin-top:2px;font-size:13px">Account &amp; privacy</a>`:''}
     ${opts.preview?'<a class="link" id="skip" role="button" tabindex="0" style="margin-top:6px">Continue (preview)</a>':''}
     <p class="faint serif-it" style="font-size:12px;max-width:300px;margin-top:8px">No ads, no streaks. Your private note is always yours.</p>
     <p class="faint" style="font-size:12px;margin-top:4px">7-day free trial, then auto-renews · cancel anytime in your store settings.<br>
@@ -525,13 +554,31 @@ async function renderPaywall(opts){
       const p=pkgs.find(x=>x.identifier===b.dataset.pid);
       if(!RC || !p){ toast(opts.preview?'Preview only. Connect RevenueCat to enable.':'Store unavailable. Try again.'); return; }
       const orig=b.querySelector('span').textContent; b.querySelector('span').textContent='Opening…'; b.disabled=true;
-      try{ await RC.purchasePackage({ aPackage:p }); if(await hasPro()){ await syncMyPremiumFlag(true); boot(); return; } }catch(e){}
+      try{
+        await RC.purchasePackage({ aPackage:p });
+        if(await hasPro()){ await syncMyPremiumFlag(true); boot(); return; }
+        // Paid but entitlement not visible yet: say so instead of silently resetting.
+        toast('Purchase received — unlocking can take a moment. Tap Restore purchase shortly.');
+      }
+      catch(e){
+        const m=(e && (e.message||e.errorMessage||''))+'';
+        // Stay quiet if they simply closed the sheet; otherwise tell them it failed.
+        if(!/cancel/i.test(m)) toast('The purchase could not be completed. Please try again.');
+      }
       b.querySelector('span').textContent=orig; b.disabled=false;
     };
   });
-  document.getElementById('restore').onclick=async()=>{ if(!RC) return; try{ await RC.restorePurchases(); }catch(e){} if(await hasPro()){ await syncMyPremiumFlag(true); boot(); } else toast('No purchase found.'); };
+  document.getElementById('restore').onclick=async()=>{
+    if(!RC){ toast('Store unavailable right now.'); return; }
+    let reached=true;
+    try{ await RC.restorePurchases(); }catch(e){ reached=false; }
+    if(await hasPro()){ await syncMyPremiumFlag(true); boot(); return; }
+    // Only claim "no purchase" when the store actually answered.
+    toast((reached && rcDefinitive) ? 'No purchase found on this account.' : 'Could not reach the store. Check your connection and try again.');
+  };
   const rt=document.getElementById('pwRetry'); if(rt) rt.onclick=()=>renderPaywall(opts);
-  const so=document.getElementById('pwSignout'); if(so) so.onclick=async()=>{ try{ await sb.auth.signOut(); }catch(e){ renderAuth(); } };
+  const so=document.getElementById('pwSignout'); if(so) so.onclick=doSignOut;
+  const pa=document.getElementById('pwAccount'); if(pa) pa.onclick=()=>renderAccount(()=>renderPaywall());
   const sk=document.getElementById('skip'); if(sk) sk.onclick=()=> STATE.user?loadContext():renderAuth();
 }
 
@@ -545,6 +592,7 @@ sb.auth.onAuthStateChange((event, session)=>{
   if(event==='PASSWORD_RECOVERY'){ STATE.user = session && session.user; renderNewPassword(); return; }
   if(!session){
     if(meetRaf){ cancelAnimationFrame(meetRaf); meetRaf=null; }
+    if(STATE.realtimeChan){ try{ sb.removeChannel(STATE.realtimeChan); }catch(e){} }
     if(STATE.presenceChan){ try{ sb.removeChannel(STATE.presenceChan); }catch(e){} }
     STATE={user:null,profile:null,couple:null,partner:null,realtimeChan:null,presenceChan:null};
     renderAuth();
@@ -555,7 +603,8 @@ async function loadContext(){
   renderLoading();
   try{
     // profile
-    let { data:prof } = await sb.from('profiles').select('*').eq('id', STATE.user.id).single();
+    let { data:prof, error:profErr } = await sb.from('profiles').select('*').eq('id', STATE.user.id).single();
+    if(profErr) throw profErr;
     STATE.profile = prof;
     // OAuth users arrive without a chosen name, so adopt the one Google/Apple provided
     if(prof && prof.display_name==='Someone'){
@@ -564,7 +613,8 @@ async function loadContext(){
       if(nm){ await sb.from('profiles').update({ display_name:nm }).eq('id', STATE.user.id); STATE.profile.display_name=nm; }
     }
     // couple
-    let { data:mem } = await sb.from('couple_members').select('couple_id').eq('user_id', STATE.user.id).limit(1).maybeSingle();
+    let { data:mem, error:memErr } = await sb.from('couple_members').select('couple_id').eq('user_id', STATE.user.id).limit(1).maybeSingle();
+    if(memErr) throw memErr;
     if(!mem){
       STATE.couple=null;
       if(!localStorage.getItem('afterglow_arrived')){ renderArrival(renderPairing); return; }
@@ -572,14 +622,15 @@ async function loadContext(){
     }
     STATE.couple = mem.couple_id;
     // partner
-    let { data:members } = await sb.from('couple_members').select('user_id').eq('couple_id', STATE.couple);
+    let { data:members, error:membersErr } = await sb.from('couple_members').select('user_id').eq('couple_id', STATE.couple);
+    if(membersErr) throw membersErr;
     const partnerId = (members||[]).map(m=>m.user_id).find(id=>id!==STATE.user.id);
     if(partnerId){
       let { data:pp } = await sb.from('profiles').select('*').eq('id', partnerId).maybeSingle();
       STATE.partner = pp || {id:partnerId, display_name:'Your person'};
     } else { STATE.partner = null; }
     // Couple-shared subscription gate: one paid plan unlocks both partners. Pairing itself is free.
-    if(RC && BILLING_ENABLED && !(await coupleHasPremium())){ renderPaywall(); return; }
+    if(RC_() && BILLING_ENABLED && !(await coupleHasPremium())){ renderPaywall(); return; }
     subscribeRealtime();
     subscribePresence();                     // live "your person is here" awareness
     await renderToday();
@@ -593,8 +644,9 @@ async function loadContext(){
 function renderError(msg, retry, detail){
   currentView='error';
   const det = detail ? '<p class="faint" style="text-align:center;max-width:300px;font-size:11px;margin-top:14px;opacity:.6">'+esc(String(detail))+'</p>' : '';
-  root.innerHTML='<div class="screen"><div class="center"><h2 class="serif-it">A quiet hiccup.</h2><p class="serif-it dim" style="text-align:center;max-width:280px">'+esc(msg)+'</p><button class="btn" id="retryBtn" style="margin-top:20px">Try again</button>'+det+'</div></div>';
+  root.innerHTML='<div class="screen"><div class="center"><h2 class="serif-it">A quiet hiccup.</h2><p class="serif-it dim" style="text-align:center;max-width:280px">'+esc(msg)+'</p><button class="btn" id="retryBtn" style="margin-top:20px">Try again</button><a class="link" id="errSignout" role="button" tabindex="0" style="margin-top:12px;font-size:14px">Sign out</a>'+det+'</div></div>';
   const b=document.getElementById('retryBtn'); if(b) b.onclick=()=>{ if(retry) retry(); };
+  const so=document.getElementById('errSignout'); if(so) so.onclick=doSignOut;
 }
 
 function subscribeRealtime(){
@@ -766,7 +818,8 @@ function renderResetRequest(){
     if(!email){ errEl.textContent='Your email, please.'; return; }
     setBtn('sendreset', true, 'Sending…');
     try{
-      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+      const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: isNative ? 'https://afterglow.madeforhumans.tech/app/' : (location.origin + location.pathname) });
       if(error) throw error;
       root.innerHTML='<div class="screen"><div class="center"><div class="glow glow-calm"></div><h2>Check your email</h2><p class="dim" style="max-width:300px">If that address has an account, a reset link is on its way. Open it on this device.</p><button class="btn ghost" id="back2" style="max-width:240px">Back to sign in</button></div></div>';
       document.getElementById('back2').onclick=()=>renderAuth('in');
@@ -782,8 +835,10 @@ function renderNewPassword(){
       <div class="pwrap"><input id="np1" aria-label="New password" type="password" placeholder="New password" autocomplete="new-password" /><button type="button" class="eye" id="peek2" aria-label="Show password" aria-pressed="false">show</button></div>
       <div class="err" role="alert" id="nperr"></div>
       <button class="btn" id="setpass">Save and continue</button>
+      <a class="link" id="npBack" role="button" tabindex="0" style="margin-top:12px;font-size:14px">Back to sign in</a>
     </div></div></div>`;
   wirePeek('peek2','np1');
+  const npb=document.getElementById('npBack'); if(npb) npb.onclick=doSignOut;
   document.getElementById('setpass').onclick=async()=>{
     const p=val('np1'); const errEl=document.getElementById('nperr'); errEl.textContent='';
     if(p.length<6){ errEl.textContent='At least 6 characters, please.'; return; }
@@ -801,13 +856,16 @@ function renderNewPassword(){
 // ---- ARRIVAL (one breath of context after first sign-up) ----
 function renderArrival(next){
   currentView='arrival';
-  root.innerHTML=`<div class="screen"><div class="center">
+  root.innerHTML=`<div class="screen">
+    <div class="topbar"><span class="tiny">Afterglow</span><a class="link" id="signout">Sign out</a></div>
+    <div class="center">
     <div class="merge" style="width:170px;height:90px"><div class="glow glow-calm sm a"></div><div class="glow glow-gratitude sm b"></div></div>
     <h1 style="font-size:26px;max-width:320px">One quiet check-in a day, shared with one person.</h1>
     <p class="dim" style="max-width:300px;font-size:15px">Each evening, you share how today felt: a soft glow, a word, a note. Your person does the same. That's all. No streaks, no scores.</p>
     <button class="btn" id="begin" style="max-width:280px">Begin</button>
   </div></div>`;
   document.getElementById('begin').onclick=()=>{ localStorage.setItem('afterglow_arrived','1'); next(); };
+  const so=document.getElementById('signout'); if(so) so.onclick=doSignOut;
 }
 
 // ---- PAIRING ----
@@ -829,7 +887,7 @@ function renderPairing(){
       </div>
     </div>
   </div>`;
-  document.getElementById('signout').onclick=()=>sb.auth.signOut();
+  document.getElementById('signout').onclick=doSignOut;
   document.getElementById('createBtn').onclick=createInvite;
   document.getElementById('joinBtn').onclick=joinWithCode;
 }
@@ -840,15 +898,22 @@ async function createInvite(){
     // Server-side function creates couple + membership + invite atomically (avoids RLS read-back issues)
     const { data, error } = await sb.rpc('create_invite');
     if(error) throw error;
+    if(data && data.error==='already_paired'){ await loadContext(); return; }
+    if(!data || !data.code) throw new Error('no_code');
     STATE.couple = data.couple_id;
     renderInviteCode(data.code);
-  }catch(e){ document.getElementById('pairerr').textContent=e.message; setBtn('createBtn',false,'Invite my person'); }
+  }catch(e){ document.getElementById('pairerr').textContent='Could not create an invite right now. Check your connection and try again.'; setBtn('createBtn',false,'Invite my person'); }
 }
 
+let invitePoll=null;
+function stopInvitePoll(){ if(invitePoll){ clearInterval(invitePoll); invitePoll=null; } }
 function renderInviteCode(code){
   currentView='invite';
+  stopInvitePoll();
   root.innerHTML=`
-  <div class="screen"><div class="center">
+  <div class="screen">
+    <div class="topbar"><a class="link" id="inviteBack">Back</a><a class="link" id="signout">Sign out</a></div>
+    <div class="center">
     <div class="glow glow-calm"></div>
     <h2>Share this with your person</h2>
     <div class="card" style="margin-top:8px">
@@ -856,14 +921,15 @@ function renderInviteCode(code){
     </div>
     <p class="dim" style="max-width:30ch">When they enter this code, you'll be paired. This screen will move on automatically.</p>
     <button class="btn ghost" id="copyc">Copy code</button>
-    <a class="link" id="waitc" style="margin-top:8px">I'll wait here</a>
   </div></div>`;
+  document.getElementById('inviteBack').onclick=()=>{ stopInvitePoll(); renderPairing(); };
+  document.getElementById('signout').onclick=()=>{ stopInvitePoll(); doSignOut(); };
   document.getElementById('copyc').onclick=()=>{ navigator.clipboard?.writeText(code); toast('Code copied'); };
-  document.getElementById('waitc').onclick=()=>loadContext();
   // poll for partner joining
-  const poll = setInterval(async()=>{
+  invitePoll = setInterval(async()=>{
+    if(currentView!=='invite'){ stopInvitePoll(); return; }
     const { data:members } = await sb.from('couple_members').select('user_id').eq('couple_id', STATE.couple);
-    if((members||[]).length>=2){ clearInterval(poll); toast("You are paired!"); hapticWin(380); loadContext(); }
+    if((members||[]).length>=2){ stopInvitePoll(); toast("You are paired!"); hapticWin(380); loadContext(); }
   }, 4000);
 }
 
@@ -875,17 +941,23 @@ async function joinWithCode(){
   try{
     const { data, error } = await sb.rpc('join_with_code', { p_code: code });
     if(error) throw error;
-    if(!data || data.error){ errEl.textContent="That code did not match. Check it and try again."; setBtn('joinBtn',false,'Join with code'); return; }
+    if(data && data.error==='already_paired'){ await loadContext(); return; }
+    if(!data || data.error){
+      const msgs={ not_found:"That code did not match, or it has expired. Ask your person for a fresh one.", own_code:"That's your own code — share it with your person instead.", code_used:"That code was already used. Ask your person for a fresh one." };
+      errEl.textContent = msgs[data && data.error] || "That code did not match. Check it and try again.";
+      setBtn('joinBtn',false,'Join with code'); return;
+    }
     toast("You are paired!"); hapticWin(380);
     await loadContext();
-  }catch(e){ errEl.textContent=e.message; setBtn('joinBtn',false,'Join with code'); }
+  }catch(e){ errEl.textContent='Could not join right now. Check the code and your connection, then try again.'; setBtn('joinBtn',false,'Join with code'); }
 }
 
 // ---- TODAY (home) ----
 async function renderToday(silent){
   if(!silent) renderLoading();
   const today = todayLocal();
-  const { data:glows } = await sb.from('glows').select('*').eq('couple_id', STATE.couple).eq('local_date', today);
+  const { data:glows, error:glowsErr } = await sb.from('glows').select('*').eq('couple_id', STATE.couple).eq('local_date', today);
+  if(glowsErr){ renderError('We could not load today. Check your connection.', ()=>renderToday()); return; }
   const mine = (glows||[]).find(g=>g.user_id===STATE.user.id);
   const theirs = (glows||[]).find(g=>g.user_id!==STATE.user.id);
   const partnerName = STATE.partner?.display_name || 'Your person';
@@ -978,7 +1050,7 @@ function renderReflect(){
       </div>
     </div>
   </div>`;
-  document.getElementById('back').onclick=renderToday;
+  document.getElementById('back').onclick=()=>renderToday();
   document.querySelectorAll('#moodchips .chip').forEach(c=>{
     c.onclick=()=>{
       draft.mood=c.dataset.mood; vib(7);   // a soft tick as you name the feeling
@@ -1014,7 +1086,11 @@ async function sendGlow(){
       if(/duplicate|unique/i.test(error.message)){ toast('You already shared today.'); renderToday(); return; }
       throw error;
     }
-    if(draft.priv){ await sb.from('glow_private').insert({ glow_id:glow.id, user_id:STATE.user.id, note:draft.priv }); }
+    if(draft.priv){
+      const { error:perr } = await sb.from('glow_private').insert({ glow_id:glow.id, user_id:STATE.user.id, note:draft.priv });
+      if(perr) toast('Your private note could not be saved — it stays on this screen. Try sending again.');
+      if(perr) throw perr;
+    }
     hapticWin(320);   // your glow is on its way: a strong win
     renderSent();
   }catch(e){ toast(e.message); setBtn('sendBtn',false,'Send'); }
@@ -1123,7 +1199,7 @@ function renderSent(){
   const reveal=()=>{ [['sentTitle','1'],['sentSub','.62'],['home','1']].forEach((p,i)=>{
     setTimeout(()=>{ const el=document.getElementById(p[0]); if(el) el.style.opacity=p[1]; }, i*200); }); };
   setTimeout(reveal, reduce?100:1600);
-  document.getElementById('home').onclick=renderToday;
+  document.getElementById('home').onclick=()=>renderToday();
 }
 
 // ---- RECEIVE ----
@@ -1145,7 +1221,7 @@ function renderReceive(theirs){
       <p class="tiny" id="warmNote">Hold ${name}'s glow close.</p>
     </div>
   </div>`;
-  document.getElementById('back').onclick=renderToday;
+  document.getElementById('back').onclick=()=>renderToday();
 
   const btn=document.getElementById('warmBtn');
   const glow=document.getElementById('warmGlow');
@@ -1216,7 +1292,7 @@ function renderReceive(theirs){
       setTimeout(()=>{ glow.style.transition='transform 1.2s ease, filter 1.2s ease'; glow.style.transform='scale(1)'; glow.style.filter=''; }, 950);
     }
     doWarm(theirs);
-    setTimeout(renderToday, reduce?1400:2700);
+    setTimeout(()=>{ if(currentView==='receive'||currentView==='together') renderToday(); }, reduce?1400:2700);
   }
   btn.addEventListener('pointerdown', start);
   btn.addEventListener('pointerup', cancel);
@@ -1224,7 +1300,9 @@ function renderReceive(theirs){
   btn.addEventListener('pointercancel', cancel);
 }
 async function doWarm(theirs){
-  try{ await sb.from('warmth').insert({ couple_id:STATE.couple, from_user:STATE.user.id, to_glow:theirs.id }); }catch(e){}
+  let warmthOk=true;
+  try{ const { error:werr } = await sb.from('warmth').insert({ couple_id:STATE.couple, from_user:STATE.user.id, to_glow:theirs.id }); if(werr) warmthOk=false; }catch(e){ warmthOk=false; }
+  if(!warmthOk){ toast('Your warmth could not be sent. Try again in a moment.'); renderToday(); return; }
 }
 
 // ---- TOGETHER ----
@@ -1245,7 +1323,7 @@ function renderTogether(mine,theirs){
       <p class="dim" id="tgSub" style="opacity:0;transition:opacity .9s;max-width:300px">${them} felt ${moodLabel(theirs.mood).toLowerCase()}. You felt ${moodLabel(mine.mood).toLowerCase()}. Tonight your lights overlap.</p>
       <p class="faint serif-it" style="font-size:12px;margin-top:4px">stay a moment</p>
     </div></div>`;
-  document.getElementById('back').onclick=renderToday;
+  document.getElementById('back').onclick=()=>renderToday();
   const reveal=()=>{ const t=document.getElementById('tgTitle'),s=document.getElementById('tgSub');
     if(t) t.style.opacity='1'; setTimeout(()=>{ if(s) s.style.opacity='.62'; }, 350); };
   setTimeout(reveal, reduce?60:1900);
@@ -1498,7 +1576,7 @@ async function renderCalendar(offset){
     document.querySelectorAll('.cal-cell.has').forEach(el=>{
       el.setAttribute('role','button'); el.setAttribute('tabindex','0');
       el.setAttribute('aria-label','Open '+fmtDate(el.dataset.date));
-      el.onclick=()=>renderDayLetter(el.dataset.date, renderCalendar);
+      el.onclick=()=>renderDayLetter(el.dataset.date, ()=>renderCalendar(offset));
     });
   }catch(e){ renderError("We could not open the calendar.", renderCalendar); }
 }
@@ -1558,11 +1636,13 @@ async function renderDayLetter(date, backFn){
 function renderNotif(){
   currentView='notif';
   const them=esc(STATE.partner?.display_name||'your person');
-  const supported = ('Notification' in window);
+  const isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const supported = !isNativeApp && ('Notification' in window);
   const perm = supported ? Notification.permission : 'unsupported';
   const on = localStorage.getItem('afterglow_notif')==='on' && perm==='granted';
   let state;
-  if(!supported){ state='<p class="dim" style="font-size:14px">This device does not support notifications. On iPhone, add Afterglow to your Home Screen first (Share → Add to Home Screen), then reminders can be turned on.</p>'; }
+  if(isNativeApp){ state='<p class="dim" style="font-size:14px;max-width:300px">Gentle reminders are coming to the app in an update. For now, Afterglow stays quiet unless you open it — nothing is missed, your story keeps itself.</p>'; }
+  else if(!supported){ state='<p class="dim" style="font-size:14px">This device does not support notifications. On iPhone, add Afterglow to your Home Screen first (Share → Add to Home Screen), then reminders can be turned on.</p>'; }
   else if(perm==='denied'){ state='<p class="dim" style="font-size:14px">Notifications are blocked in your browser settings. Allow them for this site, then come back.</p>'; }
   else if(on){ state='<p class="serif-it" style="color:rgba(94,234,212,.85)">♡ Reminders are on.</p><p class="dim" style="font-size:13px;margin-top:6px">You will be told gently when '+them+' shares a glow, even when Afterglow is closed.</p>'; }
   else { state='<p class="dim" style="font-size:14px;max-width:300px">Afterglow can gently let you know when '+them+' shares their glow. No badges, no counts, no pressure, just a quiet nudge.</p>'; }
@@ -1657,22 +1737,22 @@ function renderMenu(){
         <button class="btn" id="story">Our story</button>
         <button class="btn ghost" id="calendar">Calendar</button>
         <button class="btn ghost" id="notif">Glow reminders</button>
-        ${(RC && !BILLING_ENABLED)?`<button class="btn ghost" id="paywall">Preview paywall</button>`:''}
+        ${(RC_() && !BILLING_ENABLED)?`<button class="btn ghost" id="paywall">Preview paywall</button>`:''}
         <button class="btn ghost" id="signout">Sign out</button>
         <button class="btn ghost" id="account" style="border-color:transparent;color:var(--ink-faint)">Account &amp; privacy</button>
       </div>
     </div></div>`;
-  document.getElementById('back').onclick=renderToday;
+  document.getElementById('back').onclick=()=>renderToday();
   document.getElementById('story').onclick=()=>renderStory();
   document.getElementById('calendar').onclick=()=>renderCalendar(0);
   document.getElementById('notif').onclick=()=>renderNotif();
   const pw=document.getElementById('paywall'); if(pw) pw.onclick=()=>renderPaywall({preview:true});
-  document.getElementById('signout').onclick=()=>sb.auth.signOut();
+  document.getElementById('signout').onclick=doSignOut;
   document.getElementById('account').onclick=()=>renderAccount();
 }
 
 // ---- ACCOUNT & PRIVACY (unpair / delete) ----
-function renderAccount(){
+function renderAccount(backTo){
   currentView='account';
   const them=esc(STATE.partner?.display_name||'your person');
   root.innerHTML=`<div class="screen">
@@ -1688,7 +1768,7 @@ function renderAccount(){
         <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
         <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
     </div></div>`;
-  document.getElementById('back').onclick=renderMenu;
+  document.getElementById('back').onclick=()=>(backTo||renderMenu)();
   const up=document.getElementById('unpair');
   if(up) up.onclick=()=>confirmDanger({
     title:'Unpair from '+them+'?',
