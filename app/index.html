@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
 <title>Afterglow</title>
-<meta name="theme-color" content="#061418" />
+<meta name="theme-color" content="#010405" />
 <meta name="robots" content="noindex" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png" />
@@ -17,14 +17,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#061418; --ink:#E6F5F1; --ink-dim:rgba(230,245,241,0.72); --ink-faint:rgba(230,245,241,0.55);
+    --bg:#010405; --ink:#E6F5F1; --ink-dim:rgba(230,245,241,0.72); --ink-faint:rgba(230,245,241,0.55);
     --accent:#5EEAD4; --line:rgba(230,245,241,0.10);
     --happiness:#E8B24A; --sadness:#3E5C8C; --anger:#C0413A; --anxious:#A7A24F; --nostalgic:#B98AA6; --love:#EA6FA4; --calm:#2FA8A0; --gratitude:#7FB58F;
     --serif:'Ubuntu',system-ui,sans-serif; --sans:'Ubuntu',system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
-  body{ background:#02060A; color:var(--ink); font-family:var(--sans); font-weight:300; -webkit-font-smoothing:antialiased; }
+  body{ background:#010405; color:var(--ink); font-family:var(--sans); font-weight:300; -webkit-font-smoothing:antialiased; }
   .app{ position:fixed; inset:0; display:flex; justify-content:center; }
   .device{ position:relative; width:100%; max-width:480px; height:100dvh; background:var(--bg); overflow-y:auto; -webkit-overflow-scrolling:touch; }
 
@@ -161,8 +161,8 @@
   /* ---- lanterns (forgiving milestones) ---- */
   .lantern-stage{ position:relative; width:220px; height:230px; margin:0 auto 4px; display:flex; align-items:center; justify-content:center; }
   .lantern{ width:124px; height:124px; border-radius:50%; filter:blur(6px);
-    background:radial-gradient(circle, #fff 0%, rgba(255,238,200,.95) 18%, #E0A24B 50%, rgba(224,162,75,0) 78%);
-    box-shadow:0 0 72px 14px rgba(224,162,75,.55); animation:lanternBreathe 6s ease-in-out infinite; }
+    background:radial-gradient(circle, rgba(251,222,164,.95) 0%, #f0c485 22%, #E0A24B 55%, rgba(224,162,75,0) 80%);
+    box-shadow:0 0 54px 3px rgba(224,162,75,.34); animation:lanternBreathe 6s ease-in-out infinite; }
   .lantern.rise{ animation:lanternRise 1.7s cubic-bezier(.2,.7,.2,1), lanternBreathe 6s ease-in-out 1.7s infinite; }
   @keyframes lanternRise{ 0%{transform:translateY(90px) scale(.45);opacity:0} 55%{opacity:1} 100%{transform:translateY(0) scale(1);opacity:1} }
   @keyframes lanternBreathe{ 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-6px) scale(1.04)} }
@@ -176,7 +176,7 @@
     border-radius:999px; padding:8px 14px; background:rgba(224,162,75,.06); color:var(--ink); font-size:13px; cursor:pointer; }
   .lantern-chip:hover{ border-color:rgba(224,162,75,.5); }
   .lantern-dot{ width:12px; height:12px; border-radius:50%; flex:0 0 auto;
-    background:radial-gradient(circle, #fff, #E0A24B 60%, transparent); box-shadow:0 0 8px #E0A24B; }
+    background:radial-gradient(circle, #F3CB90, #E0A24B 60%, transparent); box-shadow:0 0 8px rgba(224,162,75,.75); }
   @media (prefers-reduced-motion:reduce){ .lantern, .lantern.rise{ animation:none; } .ember{ display:none; } }
 
   /* ---- meet in the light (live shared breath) ---- */
@@ -189,7 +189,7 @@
   .meet-merge .glow{ position:absolute; top:50%; margin-top:-80px; mix-blend-mode:screen; transition:opacity .7s ease; }  /* 160px */
   .meet-merge .ma{ left:34px } .meet-merge .mb{ right:34px }
   .meet-merge.waiting .mb{ opacity:.26 }
-  .meet-guide{ font-family:var(--serif); color:var(--dim); font-size:18px; letter-spacing:.02em; min-height:26px; }
+  .meet-guide{ font-family:var(--serif); color:var(--ink-dim); font-size:18px; letter-spacing:.02em; min-height:26px; }
   .meet-pulse{ position:absolute; left:50%; top:50%; width:90px; height:90px; border-radius:50%; border:1px solid var(--accent);
     transform:translate(-50%,-50%) scale(.55); opacity:.7; pointer-events:none; animation:ripple 1.6s ease-out forwards; }
   @media (prefers-reduced-motion:reduce){ .presence-dot{ animation:none; } .meet-pulse{ display:none; } }
@@ -567,8 +567,8 @@ async function renderPaywall(opts){
     ${opts.preview?'<a class="link" id="skip" role="button" tabindex="0" style="margin-top:6px">Continue (preview)</a>':''}
     <p class="faint display" style="font-size:12px;max-width:300px;margin-top:8px">No ads, no streaks. Your private note is always yours.</p>
     <p class="faint" style="font-size:12px;margin-top:4px">7-day free trial, then auto-renews · cancel anytime in your store settings.<br>
-      <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
-      <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
+      <a class="link" style="font-size:12px;min-height:26px;padding:7px 5px;margin:-7px -5px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
+      <a class="link" style="font-size:12px;min-height:26px;padding:7px 5px;margin:-7px -5px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
   </div></div>`;
   document.querySelectorAll('.buyPkg').forEach(b=>{
     b.onclick=async()=>{
@@ -713,8 +713,8 @@ function closeBar(title){
 const LEGAL_BASE = "https://afterglow.madeforhumans.tech";
 function legalFooter(){
   return `<p class="faint" style="font-size:12px;margin-top:14px">By continuing you agree to the
-    <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
-    <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>`;
+    <a class="link" style="font-size:12px;min-height:26px;padding:7px 5px;margin:-7px -5px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
+    <a class="link" style="font-size:12px;min-height:26px;padding:7px 5px;margin:-7px -5px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>`;
 }
 
 function renderAuth(mode){
@@ -1515,9 +1515,9 @@ async function renderStory(){
       return `<div class="ring" style="width:${dia}px;height:${dia}px;color:${dayColor(byDate[d])}"></div>`;
     }).join('');
     const ringHtml=`<div class="ring-stage" id="ringStage" role="img" aria-label="A glowing ring for each of your ${dates.length} ${dates.length===1?'evening':'evenings'} together. Use the list below to open a day.">
-        <div class="ring-aura" style="background:radial-gradient(circle, rgba(94,234,212,.09) 0%, rgba(6,20,24,0) 62%)"></div>
+        <div class="ring-aura" style="background:radial-gradient(circle, rgba(94,234,212,.09) 0%, rgba(1,4,5,0) 62%)"></div>
         <div class="ring-spin">${ghosts}${rings}</div>
-        <div class="ring-core" style="background:radial-gradient(circle, #ffffff 0%, rgba(231,245,241,.9) 20%, rgba(94,234,212,.30) 54%, rgba(6,20,24,0) 78%); box-shadow:0 0 54px 10px rgba(94,234,212,.32)"></div>
+        <div class="ring-core" style="background:radial-gradient(circle, rgba(186,244,234,.95) 0%, rgba(94,234,212,.55) 22%, rgba(94,234,212,.24) 55%, rgba(1,4,5,0) 80%); box-shadow:0 0 44px 4px rgba(94,234,212,.26)"></div>
       </div>`;
     const legend=MOODS.map(m=>`<span><i style="background:${m.color};box-shadow:0 0 6px ${m.color}"></i>${m.label.toLowerCase()}</span>`).join('');
 
@@ -1550,7 +1550,7 @@ async function renderStory(){
     STATE.lanterns = computeLanterns([...dates].sort());
     const lanternStrip = STATE.lanterns.length ? `
       <div class="lantern-strip">
-        <p class="kicker" style="text-align:center;color:var(--content)">Lanterns</p>
+        <p class="kicker" style="text-align:center;color:var(--ink-faint)">Lanterns</p>
         <div class="lantern-row">${STATE.lanterns.map((L,i)=>`<button class="lantern-chip" data-li="${i}" aria-label="${esc(L.title)}, ${fmtDate(L.earnedOn)}"><span class="lantern-dot" aria-hidden="true"></span>${esc(L.title)}</button>`).join('')}</div>
       </div>` : '';
 
@@ -1812,8 +1812,8 @@ function renderAccount(backTo){
         <button class="btn ghost" id="delacct" style="border-color:rgba(255,155,155,.35);color:#ff9b9b">Delete my account</button>
       </div>
       <p class="faint" style="font-size:12px;max-width:300px;margin-top:14px">
-        <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
-        <a class="link" style="font-size:12px;min-height:auto;padding:2px;margin:-2px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
+        <a class="link" style="font-size:12px;min-height:26px;padding:7px 5px;margin:-7px -5px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
+        <a class="link" style="font-size:12px;min-height:26px;padding:7px 5px;margin:-7px -5px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
     </div></div>`;
   document.getElementById('back').onclick=()=>(backTo||renderMenu)();
   const up=document.getElementById('unpair');
