@@ -32,14 +32,14 @@
   .glow{ width:160px; height:160px; border-radius:50%; filter:blur(10px); animation:breathe 10s ease-in-out infinite; }
   .glow.lg{ width:200px; height:200px; }
   .glow.sm{ width:64px; height:64px; filter:blur(5px); }
-  .glow-happiness{ background:radial-gradient(circle, rgba(250,239,218,.85) 0%, #f1d296 25%, #E8B24A 50%, rgba(232,178,74,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(232,178,74,.5); }
-  .glow-sadness{ background:radial-gradient(circle, rgba(216,222,232,.85) 0%, #8fa0bc 25%, #3E5C8C 50%, rgba(62,92,140,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(62,92,140,.5); }
-  .glow-anger{ background:radial-gradient(circle, rgba(242,217,215,.85) 0%, #da908c 25%, #C0413A 50%, rgba(192,65,58,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(192,65,58,.5) }
-  .glow-anxious{ background:radial-gradient(circle, rgba(237,236,219,.85) 0%, #cbc998 25%, #A7A24F 50%, rgba(167,162,79,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(167,162,79,.5); }
-  .glow-nostalgic{ background:radial-gradient(circle, rgba(241,231,237,.85) 0%, #d6bbcb 25%, #B98AA6 50%, rgba(185,138,166,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(185,138,166,.5); }
-  .glow-love{ background:radial-gradient(circle, rgba(250,226,236,.85) 0%, #f2abca 25%, #EA6FA4 50%, rgba(234,111,164,.3) 75%, transparent 100%);box-shadow:0 0 100px 16px rgba(234,111,164,.5) }
-  .glow-calm{ background:radial-gradient(circle, rgba(213,237,236,.85) 0%, #86ccc7 25%, #2FA8A0 50%, rgba(47,168,160,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(47,168,160,.5); }
-  .glow-gratitude{ background:radial-gradient(circle, rgba(229,240,232,.85) 0%, #b4d4be 25%, #7FB58F 50%, rgba(127,181,143,.3) 75%, transparent 100%); box-shadow:0 0 100px 16px rgba(127,181,143,.5); }
+  .glow-happiness{ background:radial-gradient(circle, rgba(253,226,163,.92) 0%, #f1cb85 30%, #E8B24A 58%, rgba(232,178,74,.26) 80%, transparent 100%); box-shadow:0 0 62px 2px rgba(232,178,74,.30); }
+  .glow-sadness{ background:radial-gradient(circle, rgba(168,190,224,.92) 0%, #7f95b8 30%, #3E5C8C 58%, rgba(62,92,140,.26) 80%, transparent 100%); box-shadow:0 0 62px 2px rgba(62,92,140,.30); }
+  .glow-anger{ background:radial-gradient(circle, rgba(243,163,156,.92) 0%, #d8827d 30%, #C0413A 58%, rgba(192,65,58,.26) 80%, transparent 100%);box-shadow:0 0 62px 2px rgba(192,65,58,.30) }
+  .glow-anxious{ background:radial-gradient(circle, rgba(224,220,158,.92) 0%, #c4c08a 30%, #A7A24F 58%, rgba(167,162,79,.26) 80%, transparent 100%); box-shadow:0 0 62px 2px rgba(167,162,79,.30); }
+  .glow-nostalgic{ background:radial-gradient(circle, rgba(238,196,220,.92) 0%, #d3aec6 30%, #B98AA6 58%, rgba(185,138,166,.26) 80%, transparent 100%); box-shadow:0 0 62px 2px rgba(185,138,166,.30); }
+  .glow-love{ background:radial-gradient(circle, rgba(253,183,213,.92) 0%, #f49bc0 30%, #EA6FA4 58%, rgba(234,111,164,.26) 80%, transparent 100%);box-shadow:0 0 62px 2px rgba(234,111,164,.30) }
+  .glow-calm{ background:radial-gradient(circle, rgba(150,224,217,.92) 0%, #6ac5be 30%, #2FA8A0 58%, rgba(47,168,160,.26) 80%, transparent 100%); box-shadow:0 0 62px 2px rgba(47,168,160,.30); }
+  .glow-gratitude{ background:radial-gradient(circle, rgba(183,226,196,.92) 0%, #a3cdb0 30%, #7FB58F 58%, rgba(127,181,143,.26) 80%, transparent 100%); box-shadow:0 0 62px 2px rgba(127,181,143,.30); }
   @keyframes breathe{ 0%,100%{transform:scale(1);opacity:.92} 50%{transform:scale(1.05);opacity:1} }
   @media (prefers-reduced-motion:reduce){ .glow{animation:none} }
 
@@ -91,7 +91,7 @@
   [tabindex="-1"]:focus, [tabindex="-1"]:focus-visible{ outline:none; }
   [role="button"]{ cursor:pointer; }
   .err{ color:#ff9b9b; font-size:13px; margin-top:10px; min-height:18px; }
-  .card{ width:100%; border:1px solid var(--line); background:rgba(230,245,241,.02); border-radius:22px; padding:26px 20px; text-align:center; }
+  .card{ width:100%; border:0; background:none; border-radius:22px; padding:14px 2px; text-align:center; }
   .chips{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:6px; }
   .chip{ display:inline-flex; align-items:center; gap:7px; padding:10px 14px; border-radius:999px; border:1px solid var(--line); background:rgba(230,245,241,.03); color:var(--ink); font-size:13px; cursor:pointer; }
   .chip .dot{ width:8px; height:8px; border-radius:50%; box-shadow:0 0 8px currentColor; }
@@ -100,7 +100,7 @@
   .topbar{ display:flex; justify-content:space-between; align-items:center; }
   .row{ display:flex; gap:10px; }
   .merge{ position:relative; width:200px; height:160px; }
-  .merge .glow{ position:absolute; top:50%; transform:translateY(-50%); mix-blend-mode:screen; }
+  .merge .glow{ position:absolute; top:50%; margin-top:-32px; mix-blend-mode:screen; }  /* .sm = 64px */
   .merge .a{ left:6px } .merge .b{ right:6px }
   .toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); background:rgba(6,20,24,.95); border:1px solid var(--line); border-radius:999px; padding:12px 20px; font-size:13px; color:var(--ink); opacity:0; transition:opacity .3s; z-index:50; }
   .toast.show{ opacity:1; }
@@ -186,7 +186,7 @@
   .presence-dot{ width:8px; height:8px; border-radius:50%; background:#5EEAD4; box-shadow:0 0 9px #5EEAD4; animation:pdot 2.4s ease-in-out infinite; }
   @keyframes pdot{ 0%,100%{opacity:.45} 50%{opacity:1} }
   .meet-merge{ position:relative; width:300px; height:250px; margin:0 auto; will-change:transform; }
-  .meet-merge .glow{ position:absolute; top:50%; transform:translateY(-50%); mix-blend-mode:screen; transition:opacity .7s ease; }
+  .meet-merge .glow{ position:absolute; top:50%; margin-top:-80px; mix-blend-mode:screen; transition:opacity .7s ease; }  /* 160px */
   .meet-merge .ma{ left:34px } .meet-merge .mb{ right:34px }
   .meet-merge.waiting .mb{ opacity:.26 }
   .meet-guide{ font-family:var(--serif); color:var(--dim); font-size:18px; letter-spacing:.02em; min-height:26px; }
@@ -1030,13 +1030,13 @@ async function renderToday(silent){
   root.innerHTML = `
   <div class="screen">
     <div class="topbar"><span class="tiny">Afterglow</span><button class="iconbtn" id="menu" aria-label="Open menu"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true" focusable="false"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
-    <div style="display:flex;flex-direction:column;gap:18px;margin-top:26px">
+    <div style="display:flex;flex-direction:column;gap:30px;margin-top:26px">
       <div style="text-align:center"><div class="tiny">${new Date().toLocaleDateString(undefined,{weekday:'long'})} · ${dayPart()==='late'?'night':dayPart()}</div>
         <h1 style="font-size:26px;margin-top:6px">${greeting()}, ${esc(myName)}.</h1></div>
       <div style="text-align:center"><button id="presencePill" class="presence-pill ${STATE.partnerPresent?'':'hidden'}"><span class="presence-dot" aria-hidden="true"></span>${esc(partnerName)} is here · Meet in the light</button></div>
       ${partnerBlock}
-      ${both?`<div class="card" id="bothCard" role="button" tabindex="0" aria-label="Open your shared moment" style="cursor:pointer;border-color:rgba(94,234,212,.25);background:rgba(94,234,212,.05)">
-        <div class="merge" style="margin:0 auto 8px;width:160px;height:80px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>
+      ${both?`<div class="card" id="bothCard" role="button" tabindex="0" aria-label="Open your shared moment" style="cursor:pointer">
+        <div class="merge" style="margin:0 auto 30px;width:160px;height:80px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>
         <div class="display">You're both here.</div></div>`:''}
       ${mineBlock}
       <div class="faint display" style="text-align:center;margin-top:8px;font-size:12px">no streaks, no scores</div>
@@ -1665,7 +1665,7 @@ async function renderDayLetter(date, backFn){
     root.innerHTML=`<div class="screen">
       ${closeBar(dt.toLocaleDateString(undefined,{day:'numeric',month:'short'}))}
       <div class="letter-head" style="margin-top:14px">
-        ${both?`<div class="merge letter-merge" style="width:120px;height:60px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>`:''}
+        ${both?`<div class="merge letter-merge" style="width:120px;height:60px;margin:0 auto 30px"><div class="glow glow-${theirs.mood} sm a"></div><div class="glow glow-${mine.mood} sm b"></div></div>`:''}
         <h1>${weekday}</h1>
         <div class="sub">${longd}</div>
       </div>
