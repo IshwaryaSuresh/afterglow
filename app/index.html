@@ -814,6 +814,7 @@ function renderAuth(mode){
         const { data:{ session } } = await sb.auth.getSession();
         if(!session){ // email confirmation is on
           root.innerHTML='<div class="screen"><div class="center"><div class="glow glow-calm"></div><h2>Check your email</h2><p class="dim">Confirm your address, then come back and sign in.</p><button class="btn ghost" onclick="location.reload()">Back</button></div></div>'; return;
+          return;
         }
         STATE.user=session.user; localStorage.removeItem('afterglow_arrived'); await loadContext();
       } else {
@@ -821,7 +822,16 @@ function renderAuth(mode){
         if(error) throw error;
         STATE.user=data.user; await loadContext();
       }
-    }catch(e){ errEl.textContent = e.message || 'Something went wrong.'; setBtn('authbtn', false, signup?'Create account':'Sign in'); }
+    }catch(e){
+      let m = e.message || 'Something went wrong.';
+      if(/invalid login credentials/i.test(m)){
+        m = 'That email and password did not match. If you just signed up, open the confirmation link we emailed you first.';
+      } else if(/already registered|user already/i.test(m)){
+        m = 'That email already has an account. Try signing in instead.';
+      }
+      errEl.textContent = m;
+      setBtn('authbtn', false, signup?'Create account':'Sign in');
+    }
   };
 }
 
