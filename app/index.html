@@ -106,8 +106,11 @@
   .hidden{ display:none !important; }
   .topbar{ display:flex; justify-content:space-between; align-items:center; }
   .row{ display:flex; gap:10px; }
-  .merge{ position:relative; width:200px; height:160px; }
-  .merge .glow{ position:absolute; top:50%; margin-top:-32px; mix-blend-mode:screen; }  /* .sm = 64px */
+  .merge{ position:relative; width:232px; height:160px; }
+  /* 'screen' adds channels, so two lit glows crossing went almost pure white.
+     'lighten' takes the brighter channel instead, so each keeps its own colour. */
+  .merge .glow{ position:absolute; top:50%; margin-top:-80px; mix-blend-mode:lighten; opacity:.9; }
+  .merge .glow.sm{ margin-top:-32px; }   /* 64px */
   .merge .a{ left:6px } .merge .b{ right:6px }
   .toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); background:rgba(6,20,24,.95); border:1px solid var(--line); border-radius:999px; padding:12px 20px; font-size:13px; color:var(--ink); opacity:0; transition:opacity .3s; z-index:50; }
   .toast.show{ opacity:1; }
