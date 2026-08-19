@@ -557,11 +557,31 @@ async function renderPaywall(opts){
   const monthly = pkgs.find(p=>!isAnnual(p));
   const them = esc(STATE.partner?.display_name||'your person');
   const priceOf = p => (p && p.product && p.product.priceString) || '';
-  const buyBtn = (p, label, sub, primary) => p ? `
+  // The free trial is an introductory offer on the product. StoreKit shows it on
+  // Apple's purchase sheet, but the button has to say so or nobody knows it exists.
+  const trialOf = p => {
+    const ip = p && p.product && (p.product.introPrice || p.product.introductoryPrice);
+    if(!ip) return '';
+    const isFree = ip.price===0 || /^0([.,]0+)?$/.test(String(ip.price)) || /free/i.test(ip.priceString||'');
+    if(!isFree) return '';
+    const n = Number(ip.periodNumberOfUnits || ip.cycles || 0);
+    const u = String(ip.periodUnit||'').toLowerCase().replace(/s$/,'');
+    if(!n || !u) return 'free trial';
+    return n + ' ' + u + (n>1?'s':'') + ' free';
+  };
+  const buyBtn = (p, label, sub, primary) => {
+    if(!p) return '';
+    const trial = trialOf(p), price = priceOf(p);
+    const main = trial ? ('Start ' + trial) : (label + (price ? ' · ' + esc(price) : ''));
+    const note = trial
+      ? ('then ' + (price ? esc(price) : label.toLowerCase()) + (sub ? ' · ' + sub : ''))
+      : sub;
+    return `
     <button class="btn ${primary?'':'ghost'} buyPkg" data-pid="${esc(p.identifier)}" style="max-width:320px;display:flex;flex-direction:column;gap:2px;padding:14px">
-      <span>${label}${priceOf(p)?' · '+esc(priceOf(p)):''}</span>
-      ${sub?`<span class="faint" style="font-size:12px">${sub}</span>`:''}
-    </button>` : '';
+      <span>${main}</span>
+      ${note?`<span class="faint" style="font-size:12px">${note}</span>`:''}
+    </button>`;
+  };
   root.innerHTML=`<div class="screen"><div class="center">
     <div class="glow glow-love lg"></div>
     <h1 style="font-size:27px;max-width:330px">A quiet place, just for two.</h1>
