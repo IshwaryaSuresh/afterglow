@@ -87,6 +87,23 @@
   .btn:hover{ box-shadow:0 0 42px rgba(94,234,212,.26); }
   .btn:disabled{ opacity:.5; cursor:default; box-shadow:none; }
   .btn.ghost{ background:transparent; border-color:rgba(230,245,241,0.20); color:var(--ink-dim); box-shadow:none; }
+  /* paywall: stacked selectable plans, one CTA (category-standard IA) */
+  .pw-points{ list-style:none; margin:2px 0 4px; padding:0; max-width:320px; text-align:left; }
+  .pw-points li{ position:relative; padding-left:18px; margin:7px 0; font-size:14.5px; color:var(--ink-dim); line-height:1.45; }
+  .pw-points li::before{ content:''; position:absolute; left:2px; top:8px; width:5px; height:5px; border-radius:50%; background:var(--accent); opacity:.75; }
+  .plan-group{ display:flex; flex-direction:column; gap:10px; width:100%; max-width:340px; margin-top:6px; }
+  .plan{ display:flex; align-items:center; gap:12px; width:100%; padding:14px 15px; border-radius:16px;
+    border:1px solid var(--line); background:none; color:var(--ink); font-family:var(--sans); cursor:pointer; text-align:left;
+    transition:border-color .18s ease, background .18s ease; }
+  .plan[aria-checked="true"]{ border-color:rgba(94,234,212,.6); background:rgba(94,234,212,.06); }
+  .plan-tick{ flex:none; width:20px; height:20px; border-radius:50%; border:1.5px solid var(--ink-faint); position:relative; }
+  .plan[aria-checked="true"] .plan-tick{ border-color:var(--accent); }
+  .plan[aria-checked="true"] .plan-tick::after{ content:''; position:absolute; inset:4px; border-radius:50%; background:var(--accent); }
+  .plan-text{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .plan-main{ font-size:15.5px; }
+  .plan-sub{ font-size:12.5px; color:var(--ink-faint); }
+  .plan-badge{ margin-left:auto; flex:none; font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent); border:1px solid rgba(94,234,212,.4); border-radius:999px; padding:3px 8px; }
   .link{ color:var(--accent); cursor:pointer; text-decoration:none; font-size:14px; background:none; border:0;
     font-family:inherit; min-height:44px; display:inline-flex; align-items:center; padding:8px; margin:-8px; }
   .iconbtn{ background:none; border:0; color:var(--ink); cursor:pointer; min-width:44px; min-height:44px;
@@ -555,71 +572,150 @@ async function renderPaywall(opts){
   const isAnnual = p => (p.packageType==='ANNUAL') || /year/i.test(p.product?.identifier||'');
   const annual  = pkgs.find(isAnnual);
   const monthly = pkgs.find(p=>!isAnnual(p));
-  const them = esc(STATE.partner?.display_name||'your person');
-  const priceOf = p => (p && p.product && p.product.priceString) || '';
-  // The free trial is an introductory offer on the product. StoreKit shows it on
-  // Apple's purchase sheet, but the button has to say so or nobody knows it exists.
+  const priceOf  = p => (p && p.product && p.product.priceString) || '';
+  const amountOf = p => Number(p && p.product && p.product.price) || 0;
+  const codeOf   = p => (p && p.product && (p.product.currencyCode || p.product.currency_code)) || '';
+  // Reuse the store's own price string and swap the number inside it, so the
+  // per-month figure can never disagree with the price above it (Intl would
+  // render the same currency as "US$3.33" next to the store's "$39.99").
+  const perUnit = (p, divisor) => {
+    const ps = priceOf(p), amt = amountOf(p);
+    if(!ps || !amt || !divisor) return '';
+    const m = ps.match(/[\d][\d.,\s]*/);
+    if(!m) return '';
+    const raw = m[0].trim();
+    // Only 1-2 trailing digits after a separator are decimals; three are a
+    // thousands group (₹3,999.00 must not be read as three decimal places).
+    const dec = raw.match(/[.,](\d{1,2})$/);
+    const decimals = dec ? dec[1].length : 0;
+    const commaDecimal = dec ? raw.charAt(raw.length - dec[1].length - 1) === ',' : false;
+    let num = (amt/divisor).toFixed(decimals);
+    if(commaDecimal) num = num.replace('.', ',');
+    return ps.replace(raw, num);
+  };
+
+  // A free trial is an introductory offer on the product. Read it rather than
+  // hardcoding, so the screen can never promise a trial that isn't configured.
   const trialOf = p => {
     const ip = p && p.product && (p.product.introPrice || p.product.introductoryPrice);
-    if(!ip) return '';
+    if(!ip) return null;
     const isFree = ip.price===0 || /^0([.,]0+)?$/.test(String(ip.price)) || /free/i.test(ip.priceString||'');
-    if(!isFree) return '';
-    const n = Number(ip.periodNumberOfUnits || ip.cycles || 0);
+    if(!isFree) return null;
+    const n = Number(ip.periodNumberOfUnits || ip.cycles || 0) || 0;
     const u = String(ip.periodUnit||'').toLowerCase().replace(/s$/,'');
-    if(!n || !u) return 'free trial';
-    return n + ' ' + u + (n>1?'s':'') + ' free';
+    const days = u==='week' ? n*7 : u==='month' ? n*30 : u==='year' ? n*365 : n;
+    return { days: days||0, label: (n && u) ? (n+' '+u+(n>1?'s':'')+' free') : 'free trial' };
   };
-  const buyBtn = (p, label, sub, primary) => {
-    if(!p) return '';
-    const trial = trialOf(p), price = priceOf(p);
-    const main = trial ? ('Start ' + trial) : (label + (price ? ' · ' + esc(price) : ''));
-    const note = trial
-      ? ('then ' + (price ? esc(price) : label.toLowerCase()) + (sub ? ' · ' + sub : ''))
-      : sub;
+
+  const plans = [annual, monthly].filter(Boolean);
+  let selected = plans[0] || null;
+
+  const planRow = p => {
+    const t = trialOf(p);
+    const per = isAnnual(p) ? 'a year' : 'a month';
+    let sub = priceOf(p) ? esc(priceOf(p))+' '+per : per;
+    if(isAnnual(p)){
+      const pm = perUnit(p, 12);
+      if(pm) sub += ' · '+esc(pm)+' a month';
+    }
+    let badge='';
+    if(isAnnual(p) && annual && monthly && amountOf(annual) && amountOf(monthly)){
+      const save = Math.round((1 - amountOf(annual)/(amountOf(monthly)*12))*100);
+      if(save>4) badge = '<span class="plan-badge">Save '+save+'%</span>';
+    }
     return `
-    <button class="btn ${primary?'':'ghost'} buyPkg" data-pid="${esc(p.identifier)}" style="max-width:320px;display:flex;flex-direction:column;gap:2px;padding:14px">
-      <span>${main}</span>
-      ${note?`<span class="faint" style="font-size:12px">${note}</span>`:''}
-    </button>`;
+      <button class="plan" role="radio" aria-checked="${p===selected}" tabindex="${p===selected?0:-1}" data-pid="${esc(p.identifier)}">
+        <span class="plan-tick" aria-hidden="true"></span>
+        <span class="plan-text">
+          <span class="plan-main">${isAnnual(p)?'Yearly':'Monthly'}${t?' · '+esc(t.label):''}</span>
+          <span class="plan-sub">${sub}</span>
+        </span>
+        ${badge}
+      </button>`;
   };
+
+  const ctaLabel = () => { const t = selected && trialOf(selected); return t ? 'Start '+esc(t.label) : 'Subscribe'; };
+  const reassure = () => {
+    const t = selected && trialOf(selected);
+    if(t && t.days){
+      const end = new Date(Date.now() + t.days*864e5);
+      const when = end.toLocaleDateString(undefined,{ month:'long', day:'numeric' });
+      const price = selected && priceOf(selected);
+      return 'Free until '+esc(when)+(price?', then '+esc(price):'')+'. Cancel anytime.';
+    }
+    return 'Cancel anytime in your store settings.';
+  };
+
+  const storeDown = !pkgs.length;
   root.innerHTML=`<div class="screen"><div class="center">
     <div class="glow glow-love lg"></div>
     <h1 style="font-size:27px;max-width:330px">A quiet place, just for two.</h1>
-    <p class="dim" style="max-width:320px;font-size:15px">One gentle ritual a day. <b>One subscription unlocks Afterglow for both of you.</b> Only one of you needs to pay. Free for 7 days, cancel anytime.</p>
-    ${buyBtn(annual, 'Yearly', annual&&monthly?'best value · billed once a year':'billed yearly', true)}
-    ${buyBtn(monthly, 'Monthly', 'billed every month', !annual)}
-    <button class="btn ghost" id="restore" style="max-width:320px;margin-top:4px">Restore purchase</button>
-    ${(!pkgs.length)?`<p class="faint" style="font-size:12px;max-width:300px">${opts.preview?'Preview only.':'The store is taking a moment — please try again in a little while.'}</p>
-    <button class="btn ghost" id="pwRetry" style="max-width:320px;margin-top:4px">Try again</button>`:''}
-    ${STATE.user?.email?`<p class="faint" style="font-size:12px;margin-top:12px">Signed in as ${esc(STATE.user.email)}</p>`:''}
+    <ul class="pw-points">
+      <li>One gentle ritual a day, kept forever</li>
+      <li><b>One subscription covers you both</b> — only one of you pays</li>
+      <li>No ads, no streaks, no scores</li>
+    </ul>
+    ${storeDown?'':`
+    <div class="plan-group" role="radiogroup" aria-label="Choose a plan">${plans.map(planRow).join('')}</div>
+    <button class="btn" id="pwBuy" style="max-width:340px">${ctaLabel()}</button>
+    <p class="faint" id="pwTerms" style="font-size:12.5px;max-width:320px;margin-top:6px">${reassure()}</p>
+    <a class="link" id="restore" role="button" tabindex="0" style="margin-top:10px;font-size:13px">Restore purchase</a>`}
+    ${storeDown?`<p class="faint" style="font-size:12px;max-width:300px">${opts.preview?'Preview only.':'The store is taking a moment — please try again in a little while.'}</p>
+    <button class="btn ghost" id="pwRetry" style="max-width:320px;margin-top:4px">Try again</button>
+    <a class="link" id="restore" role="button" tabindex="0" style="margin-top:10px;font-size:13px">Restore purchase</a>`:''}
+    ${STATE.user?.email?`<p class="faint" style="font-size:12px;margin-top:14px">Signed in as ${esc(STATE.user.email)}</p>`:''}
     <a class="link" id="pwSignout" role="button" tabindex="0" style="margin-top:2px;font-size:14px">Sign out</a>
     ${STATE.couple?`<a class="link" id="pwAccount" role="button" tabindex="0" style="margin-top:2px;font-size:13px">Account &amp; privacy</a>`:''}
     ${opts.preview?'<a class="link" id="skip" role="button" tabindex="0" style="margin-top:6px">Continue (preview)</a>':''}
-    <p class="faint display" style="font-size:12px;max-width:300px;margin-top:8px">No ads, no streaks. Your private note is always yours.</p>
-    <p class="faint" style="font-size:12px;margin-top:4px">7-day free trial, then auto-renews · cancel anytime in your store settings.<br>
+    <p class="faint" style="font-size:12px;margin-top:10px">Auto-renews until cancelled · manage in your store settings.<br>
       <a class="link" style="font-size:12px;min-height:26px;padding:7px 5px;margin:-7px -5px" href="${LEGAL_BASE}/terms.html" target="_blank" rel="noopener">Terms</a> ·
       <a class="link" style="font-size:12px;min-height:26px;padding:7px 5px;margin:-7px -5px" href="${LEGAL_BASE}/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
   </div></div>`;
-  document.querySelectorAll('.buyPkg').forEach(b=>{
-    b.onclick=async()=>{
-      const p=pkgs.find(x=>x.identifier===b.dataset.pid);
-      if(!RC || !p){ toast(opts.preview?'Preview only. Connect RevenueCat to enable.':'Store unavailable. Try again.'); return; }
-      const orig=b.querySelector('span').textContent; b.querySelector('span').textContent='Opening…'; b.disabled=true;
-      try{
-        await RC.purchasePackage({ aPackage:p });
-        if(await hasPro()){ await syncMyPremiumFlag(true); boot(); return; }
-        // Paid but entitlement not visible yet: say so instead of silently resetting.
-        toast('Purchase received — unlocking can take a moment. Tap Restore purchase shortly.');
+
+  // ---- plan selection (radiogroup: click, plus arrow keys) ----
+  const rows = [...document.querySelectorAll('.plan')];
+  const paint = () => {
+    rows.forEach(r=>{
+      const on = r.dataset.pid === (selected && selected.identifier);
+      r.setAttribute('aria-checked', on ? 'true' : 'false');
+      r.tabIndex = on ? 0 : -1;
+    });
+    const b=document.getElementById('pwBuy'); if(b) b.textContent=ctaLabel();
+    const t=document.getElementById('pwTerms'); if(t) t.textContent=reassure();
+  };
+  rows.forEach((r,i)=>{
+    r.onclick=()=>{ selected = pkgs.find(x=>x.identifier===r.dataset.pid) || selected; paint(); };
+    r.onkeydown=(e)=>{
+      if(e.key==='ArrowDown'||e.key==='ArrowRight'||e.key==='ArrowUp'||e.key==='ArrowLeft'){
+        e.preventDefault();
+        const dir = (e.key==='ArrowDown'||e.key==='ArrowRight') ? 1 : -1;
+        const next = rows[(i+dir+rows.length)%rows.length];
+        selected = pkgs.find(x=>x.identifier===next.dataset.pid) || selected;
+        paint(); next.focus();
       }
-      catch(e){
-        const m=(e && (e.message||e.errorMessage||''))+'';
-        // Stay quiet if they simply closed the sheet; otherwise tell them it failed.
-        if(!/cancel/i.test(m)) toast('The purchase could not be completed. Please try again.');
-      }
-      b.querySelector('span').textContent=orig; b.disabled=false;
     };
   });
-  document.getElementById('restore').onclick=async()=>{
+
+  // ---- one CTA, buys whichever plan is selected ----
+  const buy=document.getElementById('pwBuy');
+  if(buy) buy.onclick=async()=>{
+    if(!RC || !selected){ toast(opts.preview?'Preview only. Connect RevenueCat to enable.':'Store unavailable. Try again.'); return; }
+    const orig=buy.textContent; buy.textContent='Opening…'; buy.disabled=true;
+    try{
+      await RC.purchasePackage({ aPackage:selected });
+      if(await hasPro()){ await syncMyPremiumFlag(true); boot(); return; }
+      // Paid but entitlement not visible yet: say so instead of silently resetting.
+      toast('Purchase received — unlocking can take a moment. Tap Restore purchase shortly.');
+    }catch(e){
+      const m=(e && (e.message||e.errorMessage||''))+'';
+      // Stay quiet if they simply closed the sheet; otherwise tell them it failed.
+      if(!/cancel/i.test(m)) toast('The purchase could not be completed. Please try again.');
+    }
+    buy.textContent=orig; buy.disabled=false;
+  };
+
+  const rs=document.getElementById('restore');
+  if(rs) rs.onclick=async()=>{
     if(!RC){ toast('Store unavailable right now.'); return; }
     let reached=true;
     try{ await RC.restorePurchases(); }catch(e){ reached=false; }
