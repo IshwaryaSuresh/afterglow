@@ -55,9 +55,9 @@
   .center{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:18px; }
   h1{ font-family:var(--serif); font-weight:300; font-size:30px; letter-spacing:-.015em; }
   h2{ font-family:var(--serif); font-weight:300; font-size:21px; letter-spacing:-.01em; }
-  /* display: the app's own voice — never slanted */
+  /* display: the app's own voice, never slanted */
   .display{ font-family:var(--serif); font-weight:300; }
-  /* voice: words one of them actually wrote — the only italic in the app */
+  /* voice: words one of them actually wrote, the only italic in the app */
   .voice{ font-family:var(--serif); font-style:italic; font-weight:300; }
   .dim{ color:var(--ink-dim); } .faint{ color:var(--ink-faint); }
   .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
@@ -468,7 +468,7 @@ const BILLING_ENABLED = true;   // RevenueCat keys + afterglow_monthly/afterglow
 const SOCIAL_KEYS = {
   googleIOS:      "953513206330-od46r5jft303rdngtbem8sbqflboc4hf.apps.googleusercontent.com",  // iOS OAuth client ID
   googleAndroid:  "953513206330-h0fpu2ecjtj737hk334ltn1tj9bv8tal.apps.googleusercontent.com",  // Android OAuth client ID (keystore SHA-1)
-  googleWebForServer: "953513206330-uctjbhrvag47q1541mdadtmdetbelt6s.apps.googleusercontent.com", // Web client ID (also the Supabase Google provider client) — serverClientId for Android offline access
+  googleWebForServer: "953513206330-uctjbhrvag47q1541mdadtmdetbelt6s.apps.googleusercontent.com", // Web client ID (also the Supabase Google provider client), serverClientId for Android offline access
   appleServicesId:"tech.madeforhumans.afterglow.signin",    // Services ID registered in Apple Dev portal (pending Apple membership)
   appleRedirect:  "https://daharpiwvdewulbsdxge.supabase.co/auth/v1/callback"  // Supabase's Apple callback
 };
@@ -487,7 +487,7 @@ async function ensureSocialLoginReady(){
     },
     apple: {
       clientId: SOCIAL_KEYS.appleServicesId,
-      // iOS: NO redirectUrl — an empty redirect makes the plugin return Apple's native idToken
+      // iOS: NO redirectUrl, since an empty redirect makes the plugin return Apple's native idToken
       // directly (which we hand to Supabase). A set redirectUrl triggers a custom-backend POST
       // flow that Supabase doesn't speak. Android Apple uses the web redirect, so set it there.
       ...(platform==='android' ? { redirectUrl: SOCIAL_KEYS.appleRedirect } : {})
@@ -516,7 +516,7 @@ async function rcInit(){
   return rcReady;
 }
 // Does THIS person personally have an active subscription/trial?
-// rcDefinitive is true only when the store actually answered — an outage must never
+// rcDefinitive is true only when the store actually answered. An outage must never
 // be read as "not subscribed".
 async function hasPro(){
   const RC = RC_();
@@ -652,7 +652,7 @@ async function renderPaywall(opts){
     <h1 style="font-size:27px;max-width:330px">A quiet place, just for two.</h1>
     <ul class="pw-points">
       <li>One gentle ritual a day, kept forever</li>
-      <li><b>One subscription covers you both</b> — only one of you pays</li>
+      <li><b>One subscription covers you both.</b> Only one of you pays</li>
       <li>No ads, no streaks, no scores</li>
     </ul>
     ${storeDown?'':`
@@ -660,7 +660,7 @@ async function renderPaywall(opts){
     <button class="btn" id="pwBuy" style="max-width:340px">${ctaLabel()}</button>
     <p class="faint" id="pwTerms" style="font-size:12.5px;max-width:320px;margin-top:6px">${reassure()}</p>
     <a class="link" id="restore" role="button" tabindex="0" style="margin-top:10px;font-size:13px">Restore purchase</a>`}
-    ${storeDown?`<p class="faint" style="font-size:12px;max-width:300px">${opts.preview?'Preview only.':'The store is taking a moment — please try again in a little while.'}</p>
+    ${storeDown?`<p class="faint" style="font-size:12px;max-width:300px">${opts.preview?'Preview only.':'The store is taking a moment. Please try again in a little while.'}</p>
     <button class="btn ghost" id="pwRetry" style="max-width:320px;margin-top:4px">Try again</button>
     <a class="link" id="restore" role="button" tabindex="0" style="margin-top:10px;font-size:13px">Restore purchase</a>`:''}
     ${STATE.user?.email?`<p class="faint" style="font-size:12px;margin-top:14px">Signed in as ${esc(STATE.user.email)}</p>`:''}
@@ -705,7 +705,7 @@ async function renderPaywall(opts){
       await RC.purchasePackage({ aPackage:selected });
       if(await hasPro()){ await syncMyPremiumFlag(true); boot(); return; }
       // Paid but entitlement not visible yet: say so instead of silently resetting.
-      toast('Purchase received — unlocking can take a moment. Tap Restore purchase shortly.');
+      toast('Purchase received. Unlocking can take a moment, so tap Restore purchase shortly.');
     }catch(e){
       const m=(e && (e.message||e.errorMessage||''))+'';
       // Stay quiet if they simply closed the sheet; otherwise tell them it failed.
@@ -1100,7 +1100,7 @@ async function joinWithCode(){
     if(error) throw error;
     if(data && data.error==='already_paired'){ await loadContext(); return; }
     if(!data || data.error){
-      const msgs={ not_found:"That code did not match, or it has expired. Ask your person for a fresh one.", own_code:"That's your own code — share it with your person instead.", code_used:"That code was already used. Ask your person for a fresh one." };
+      const msgs={ not_found:"That code did not match, or it has expired. Ask your person for a fresh one.", own_code:"That's your own code. Share it with your person instead.", code_used:"That code was already used. Ask your person for a fresh one." };
       errEl.textContent = msgs[data && data.error] || "That code did not match. Check it and try again.";
       setBtn('joinBtn',false,'Join with code'); return;
     }
@@ -1246,7 +1246,7 @@ async function sendGlow(){
     }
     if(draft.priv){
       const { error:perr } = await sb.from('glow_private').insert({ glow_id:glow.id, user_id:STATE.user.id, note:draft.priv });
-      if(perr) toast('Your private note could not be saved — it stays on this screen. Try sending again.');
+      if(perr) toast('Your private note could not be saved, so it stays on this screen. Try sending again.');
       if(perr) throw perr;
     }
     hapticWin(320);   // your glow is on its way: a strong win
@@ -1285,7 +1285,7 @@ function vib(p){
   if(!HAPTICS){ _hapStatus('OFF (toggle off)'); return; }
   try{
     const Cap=getCapHaptics();
-    // Semantic reward/alert haptics — iOS's punchy "notification" feedback (the satisfying ta-da).
+    // Semantic reward/alert haptics: iOS's punchy "notification" feedback (the satisfying ta-da).
     if(typeof p==='string'){
       const type = p==='error'?'ERROR':(p==='warning'?'WARNING':'SUCCESS');
       if(Cap){ try{ Cap.notification({ type }); }catch(e){} _hapStatus('notify '+type); return; }
@@ -1311,7 +1311,7 @@ function vib(p){
     _hapStatus('no haptic path (Capacitor bridge not present, no vibrate API)');
   }catch(e){ _hapStatus('error: '+e.message); }
 }
-// A sustained, INTENSE rumble — many HEAVY taps in tight succession. This is the strongest iOS
+// A sustained, INTENSE rumble: many HEAVY taps in tight succession. This is the strongest iOS
 // allows without custom Core Haptics; rapid repetition reads as one big buzz, not separate taps.
 function hapticRumble(durationMs, gap){
   if(!HAPTICS) return;
@@ -1325,7 +1325,7 @@ function hapticRumble(durationMs, gap){
   if(navigator.vibrate){ navigator.vibrate(durationMs); _hapStatus('web rumble '+durationMs+'ms'); }
   else { _iosHapticInit(); if(_hapSwitch) _hapSwitch.click(); }
 }
-// The big "win" — a strong rumble capped with the SUCCESS notification flourish.
+// The big "win": a strong rumble capped with the SUCCESS notification flourish.
 function hapticWin(durationMs){
   if(!HAPTICS) return;
   hapticRumble(durationMs||300);
@@ -1824,7 +1824,7 @@ function renderNotif(){
   const perm = supported ? Notification.permission : 'unsupported';
   const on = localStorage.getItem('afterglow_notif')==='on' && perm==='granted';
   let state;
-  if(isNativeApp){ state='<p class="dim" style="font-size:14px;max-width:300px">Gentle reminders are coming to the app in an update. For now, Afterglow stays quiet unless you open it — nothing is missed, your story keeps itself.</p>'; }
+  if(isNativeApp){ state='<p class="dim" style="font-size:14px;max-width:300px">Gentle reminders are coming to the app in an update. For now, Afterglow stays quiet unless you open it. Nothing is missed, and your story keeps itself.</p>'; }
   else if(!supported){ state='<p class="dim" style="font-size:14px">This device does not support notifications. On iPhone, add Afterglow to your Home Screen first (Share → Add to Home Screen), then reminders can be turned on.</p>'; }
   else if(perm==='denied'){ state='<p class="dim" style="font-size:14px">Notifications are blocked in your browser settings. Allow them for this site, then come back.</p>'; }
   else if(on){ state='<p class="display" style="color:rgba(94,234,212,.85)">♡ Reminders are on.</p><p class="dim" style="font-size:13px;margin-top:6px">You will be told gently when '+them+' shares a glow, even when Afterglow is closed.</p>'; }
